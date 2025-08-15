@@ -1,0 +1,384 @@
+import React, { Component } from "react";
+import "./Quality.css";
+
+export default class Quality extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      incidents: [],
+      departments: [],
+      showDetailsModal: false,
+      showUpdateModal: false,
+      selectedIncident: null,
+      selectedDepartmentId: ""
+    };
+  }
+
+  componentDidMount() {
+    fetch("/quality")
+      .then(res => res.json())
+      .then(data => {
+        this.setState({
+          incidents: Array.isArray(data.incidents) ? data.incidents : [],
+          departments: Array.isArray(data.departments) ? data.departments : []
+        });
+      })
+      .catch(err => {
+        console.error("Error fetching data:", err);
+        this.setState({ incidents: [], departments: [] });
+      });
+  }
+
+  openDetailsModal = (incident) => {
+    this.setState({
+      showDetailsModal: true,
+      selectedIncident: incident,
+      selectedDepartmentId: "" // reset selection each time
+    });
+  };
+
+  closeDetailsModal = () => {
+    this.setState({ showDetailsModal: false, selectedIncident: null });
+  };
+
+  openUpdateModal = (incident) => {
+    this.setState({ showUpdateModal: true, selectedIncident: incident });
+  };
+
+  closeUpdateModal = () => {
+    this.setState({ showUpdateModal: false, selectedIncident: null });
+  };
+
+  handleUpdateSubmit = (e) => {
+    e.preventDefault();
+    alert("Update submitted!");
+    this.closeUpdateModal();
+  };
+
+  // NEW: Assign incident to department
+  handleAssignDepartment = () => {
+    const { selectedIncident, selectedDepartmentId } = this.state;
+    if (!selectedDepartmentId) {
+      alert("Please select a department before submitting.");
+      return;
+    }
+
+    fetch(`/assign-incident`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        incidentId: selectedIncident.IncidentID,
+        departmentId: selectedDepartmentId
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        alert(data.message || "Incident assigned successfully.");
+        this.closeDetailsModal();
+      })
+      .catch(err => {
+        console.error("Error assigning department:", err);
+        alert("Failed to assign department.");
+      });
+  };
+
+  render() {
+    const {
+      incidents,
+      departments,
+      showDetailsModal,
+      showUpdateModal,
+      selectedIncident,
+      selectedDepartmentId
+    } = this.state;
+
+    return (
+      <div className="quality-dashboard">
+        <header>
+          <img src="alnas-hospital.png" alt="Hospital Logo" />
+          <h1>Quality Department Dashboard</h1>
+        </header>
+
+        <main>
+          {/* Filters */}
+          <div id="filters">
+            <label htmlFor="statusFilter">Status:</label>
+            <select id="statusFilter">
+              <option value="all">All</option>
+              <option value="New">New</option>
+              <option value="Assigned">Assigned</option>
+              <option value="PendingResponse">Pending Response</option>
+              <option value="Closed">Closed</option>
+            </select>
+
+            <label htmlFor="responseFilter">Responded by Dept:</label>
+            <select id="responseFilter">
+              <option value="all">All</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+
+            <label htmlFor="dateFrom">From Date:</label>
+            <input type="date" id="dateFrom" />
+
+            <label htmlFor="dateTo">To Date:</label>
+            <input type="date" id="dateTo" />
+
+            <button>Filter</button>
+            <button>Clear</button>
+          </div>
+
+          {/* Incident Table */}
+          <table id="incidentTable">
+            <thead>
+              <tr>
+                <th>Incident No</th>
+                <th>Date</th>
+                <th>Location</th>
+                <th>Reporter</th>
+                <th>Status</th>
+                <th>Responded by Dept</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incidents.length === 0 ? (
+                <tr>
+                  <td colSpan="7" style={{ textAlign: "center" }}>
+                    No incidents found.
+                  </td>
+                </tr>
+              ) : (
+                incidents.map((incident) => (
+                  <tr
+                    key={incident.IncidentID}
+                    data-status={incident.status}
+                    data-responded={incident.responded}
+                    data-date={incident.Date}
+                  >
+                    <td>{incident.IncidentID}</td>
+                    <td>{incident.Date}</td>
+                    <td>{incident.Location}</td>
+                    <td>{incident.ReporterName}</td>
+                    <td className={`status-${incident.status}`}>{incident.status}</td>
+                    <td>{incident.responded}</td>
+                    <td>
+                      <button
+                        className="details-btn"
+                        onClick={() => this.openDetailsModal(incident)}
+                      >
+                        Details
+                      </button>
+                      <button
+                        className="update-btn"
+                        onClick={() => this.openUpdateModal(incident)}
+                        style={{ marginLeft: "10px" }}
+                      >
+                        Update
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+
+          {/* Details Modal */}
+          <div
+            className={`modal-bg ${showDetailsModal ? "active" : ""}`}
+            onClick={this.closeDetailsModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="details-title"
+          >
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="close-btn"
+                onClick={this.closeDetailsModal}
+                aria-label="Close details modal"
+              >
+                ×
+              </button>
+
+              <h2 id="details-title">Incident Details</h2>
+              {selectedIncident && (
+                <>
+                  <p><strong>Incident No:</strong> {selectedIncident.IncidentID}</p>
+                  <p><strong>Date:</strong> {selectedIncident.Date}</p>
+                  <p><strong>Location:</strong> {selectedIncident.Location}</p>
+                  <p><strong>Reporter:</strong> {selectedIncident.ReporterName}</p>
+                  <p><strong>Status:</strong> {selectedIncident.status}</p>
+                  <p><strong>Responded:</strong> {selectedIncident.responded ? "Yes" : "No"}</p>
+                </>
+              )}
+
+              <h2>Send to the Department</h2>
+              <div id="filters">
+                <select
+                  value={selectedDepartmentId}
+                  onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept.DepartmentID} value={dept.DepartmentID}>
+                      {dept.DepartmentName}
+                    </option>
+                  ))}
+                </select>
+                <button onClick={this.handleAssignDepartment}>Submit</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Update Modal */}
+          {/* (rest of your update modal code remains unchanged) */}
+             {/* Update Modal */}
+          <div
+            className={`modal-bg ${showUpdateModal ? "active" : ""}`}
+            onClick={this.closeUpdateModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="update-title"
+          >
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="close-btn"
+                onClick={this.closeUpdateModal}
+                aria-label="Close update modal"
+              >
+                ×
+              </button>
+
+              <form onSubmit={this.handleUpdateSubmit}>
+              <h2 id="quality-title">Incident Response</h2>
+              <div className="section">
+                <table className="modal-table">
+                  <thead>
+                    <tr>
+                      <th>Due Date:</th>
+                      <th>Incident Most Probable Causes</th>
+                      <th>Corrective / Preventive Action:</th>
+                        
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                        <td>2025-08-20</td>
+                        <td><span className="status-pending">anythinggg</span></td>
+                        <td>anything             </td>
+                       
+                    </tr>
+          
+                  </tbody>
+                </table>
+              </div>
+                <h2 id="quality-title">Sending Follow-Up</h2>
+
+                <div className="section">
+                  <table className="modal-table">
+                    <thead>
+                      <tr>
+                        <th>Follow-Up Date</th>
+                        <th>Status</th>
+                        <th>Type</th>
+                        <th>Risk Scoring</th>
+                        <th>Categorization</th>
+                        <th>Effectiveness Result</th>
+                        <th>Comment</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>2025-08-20</td>
+                        <td><span className="status-pending">Pending</span></td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>Awaiting verification of corrective action.</td>
+                      </tr>
+                      <tr>
+                        <td>2025-08-25</td>
+                        <td><span className="status-completed">Completed</span></td>
+                         <td>Near Miss Events</td>
+                         <td>—</td>
+                         <td>—</td>
+                        <td><span className="status-effective">Effective</span></td>
+                        <td>Issue resolved and verified.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {/*This part will show after Recieving the first response from the department*/}
+                  <h3>Categorization</h3><br/>
+                  <textarea
+                    id="Categorization"
+                    rows="2"
+                    placeholder=""
+                  ></textarea>
+
+                  <h3>Type </h3>
+                  <div className="checkbox-group">
+                    <label>
+                      <input type="checkbox" name="type" value="Near Miss Events" />
+                      <strong>Near Miss Events:</strong> any process variation that did not affect an outcome but for which a recurrence carries a significant chance of a serious adverse outcome
+                    </label><br/><br/>
+                    <label>
+                      <input type="checkbox" name="type" value="Adverse Events" />
+                      <strong>Adverse Events:</strong> An event that results in injury or ill-health after reaching the patient
+                    </label><br/><br/>
+                    <label>
+                      <input type="checkbox" name="type" value="Significant Events" />
+                      <strong>Significant Events:</strong> Significant unexpected events can happen even in hospitals
+                    </label><br/><br/>
+                    <label>
+                      <input type="checkbox" name="type" value="Sentinel Events" />
+                      <strong>Sentinel Events</strong>: is a Patient Safety Event that reaches a patient and needs an immediate investigation and response
+                    </label>
+                  </div>
+
+                  
+                  <h3>Risk Scoring</h3>
+                  <div id = 'filters'>
+                    <select>
+                       <option value="RiskScoring">1</option>
+                       <option value="RiskScoring">2</option>
+                       <option value="RiskScoring">3</option>
+                        <option value="RiskScoring">4</option>
+                     <option value="RiskScoring">5</option>
+                    </select> 
+                  </div>
+                   
+                  <h3>Corrective/Preventive Action Effectiveness Review after Implementation:</h3>
+                  <div id = 'filters'>
+                    <select>
+                      <option value="Effectivness"> Effective (OVR Closed) </option>
+                      <option value="Effectiness">Ineffective (Needs another corrective/preventive action) </option>
+
+                    </select> 
+                  </div>
+                </div>
+                {/* Reply Modal */}
+                <div className="section">
+                  <label htmlFor="quality-reply">Comment </label>
+                  <textarea
+                    id="quality-reply"
+                    rows="3"
+                    placeholder=""
+                  ></textarea>
+                  <br />
+
+                </div>
+
+                <button type="submit" 
+                    className="btn-quality"
+                    onClick={() => alert("Reply sent!")}>
+                  Submit Update
+                </button>
+              </form>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+}

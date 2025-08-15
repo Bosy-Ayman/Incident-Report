@@ -1,0 +1,124 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f0f3f7;
+  margin: 0;
+  padding: 0;
+}
+
+.incident-container {
+  max-width: 650px;
+  margin: 20px auto;
+  padding: 35px 40px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(59, 47, 47, 0.1);
+}
+
+header {
+  background-color: #2b6cb0;
+  color: white;
+  padding: 15px 25px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+header img {
+  height: 50px;
+}
+
+.incident-container header h1 {
+  flex-grow: 1;
+  font-size: 1.5rem;
+}
+
+.incident-container h2 {
+  color: #2169b6;
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+
+.incident-container label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.incident-container input[type="text"],
+.incident-container input[type="date"],
+.incident-container input[type="time"],
+.incident-container input[type="datetime-local"],
+.incident-container textarea {
+  width: 95%;
+  padding: 10px 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 15px;
+  background-color: #fdfdfd;
+  color: #333;
+  transition: border-color 0.3s ease;
+  align-items: center;
+}
+
+.incident-container input:focus,
+.incident-container textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+}
+
+.incident-container textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* Checkbox and label alignment */
+.incident-container .checkbox-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.incident-container .checkbox-group input[type="checkbox"] {
+  transform: scale(1.3);
+  margin-right: 10px;
+  cursor: pointer;
+}
+
+.incident-container .checkbox-group label {
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Sub-sections for Patient, Employee, Visitor details */
+.incident-container .sub-section {
+  background-color: #f5f7f9;
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+/* Submit button styling */
+.incident-container button {
+  width: 100%;
+  background-color: #007bff;
+  color: white;
+  font-size: 16px;
+  padding: 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.incident-container button:hover {
+  background-color: #0056b3;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .incident-container {
+    padding: 20px;
+  }
+}
