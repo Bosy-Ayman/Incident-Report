@@ -9,11 +9,10 @@ const port = 3000;
 
 app.use(cors());
 
-// Middleware to parse form data & JSON
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// Serve React build folder as static files
+
 app.use(express.static(path.join(__dirname, "build")));
 
 // --------------------------------------------- incident-form-----------------------------------------------------------
@@ -22,7 +21,7 @@ app.post("/incident-form", async (req, res) => {
   try {
     pool = await sql.connect({
       connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=NewIncident;Trusted_Connection=Yes;"
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
     });
 
     const {
@@ -125,61 +124,177 @@ app.post("/incident-form", async (req, res) => {
   }
 });
 
-// -------------------------------------- UPDATE INCIDENT FOR QUALITY --------------------------------------
-app.put("/quality", async (req, res) => {
-  const {
-    incidentId,
-    departmentId,
-    categorization,
-    type,
-    riskScoring,
-    effectiveness,
-    comment
-  } = req.body;
+// ------------------------------------------- UPDATE INCIDEN
+// T FOR QUALITY -------------------------------------------
 
-  if (!incidentId) {
-    return res.status(400).json({ status: "error", message: "IncidentID is required" });
+app.get("/quality", async (req, res) => {
+  let pool;
+  try {
+    pool = await sql.connect({
+      connectionString:
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
+    });
+
+    const query = `
+      SELECT 
+        i.IncidentID,
+        i.IncidentDate,
+        i.Location,
+        r.Name AS ReporterName,
+        r.Title AS ReporterTitle,
+        r.ReportDate,
+        r.ReportTime,
+        i.Description,
+        i.status,
+        i.responded,
+        i.ImmediateAction,
+        STRING_AGG(ai.Type + ': ' + COALESCE(ai.Name, ''), ', ') AS AffectedList
+      FROM Incidents i
+      JOIN Reporters r ON i.ReporterID = r.ReporterID
+      LEFT JOIN AffectedIndividuals ai ON i.IncidentID = ai.IncidentID
+      GROUP BY 
+        i.IncidentID, 
+        i.IncidentDate, 
+        i.Location, 
+        r.Name, 
+        r.Title, 
+        r.ReportDate, 
+        r.ReportTime,
+        i.Description, 
+        i.ImmediateAction,
+        i.status,
+        i.responded
+      ORDER BY i.IncidentID DESC
+    `;
+
+
+    const result = await pool.request().query(query);
+
+    res.json({ status: "success", data: result.recordset });
+  } catch (error) {
+    console.error("Error fetching incidents:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+
+// ====================== UPDATE INCIDENT (store DepartmentID) ======================
+app.put("/quality", async (req, res) => {
+  const { incidentId, departmentId } = req.body;
+
+  if (!incidentId || !departmentId) {
+    return res.status(400).json({ status: "error", message: "IncidentID and DepartmentID are required" });
   }
 
   let pool;
   try {
     pool = await sql.connect({
       connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=NewIncident;Trusted_Connection=Yes;"
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
     });
 
-    // Update incident with optional fields
-    const query = `
-      UPDATE Incidents
-      SET 
-        DepartmentID = COALESCE(@DepartmentID, DepartmentID),
-        categorization = COALESCE(@Categorization, categorization),
-        type = COALESCE(@Type, type),
-        riskScoring = COALESCE(@RiskScoring, riskScoring),
-        effectiveness = COALESCE(@Effectiveness, effectiveness),
-        comment = COALESCE(@Comment, comment),
-        status = 'Assigned'
-      WHERE IncidentID = @IncidentID
-    `;
-
     await pool.request()
-      .input("IncidentID", sql.Int, incidentId)
-      .input("DepartmentID", sql.Int, departmentId || null)
-      .input("Categorization", sql.NVarChar, categorization || null)
-      .input("Type", sql.NVarChar, type || null)
-      .input("RiskScoring", sql.NVarChar, riskScoring || null)
-      .input("Effectiveness", sql.NVarChar, effectiveness || null)
-      .input("Comment", sql.NVarChar, comment || null)
-      .query(query);
+      .input("incidentId", sql.Int, incidentId)
+      .input("departmentId", sql.Int, departmentId)
+      .query(`
+        UPDATE Incidents
+        SET DepartmentID = @departmentId
+        WHERE IncidentID = @incidentId
+      `);
 
-    res.json({ status: "success", message: "Incident updated successfully!" });
+    res.json({ status: "success", message: "Department assigned successfully" });
   } catch (error) {
-    console.error("Error updating incident:", error);
+    console.error("Error assigning department:", error);
     res.status(500).json({ status: "error", message: error.message });
   } finally {
     if (pool) await pool.close();
   }
 });
+
+//------------------------------------------------------------Departments------------------------------------------------------------
+
+app.get("/departments", async (req, res) => {
+  let pool;
+  try {
+    pool = await sql.connect({
+      connectionString:
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
+    });
+
+    const result = await pool.request().query(`
+      SELECT DepartmentID, DepartmentName
+      FROM Departments
+      ORDER BY DepartmentName
+    `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error("Error fetching departments:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+
+
+// ====================== GET DEPARTMENTS (for dropdown) ======================
+app.get("/departments", async (req, res) => {
+  let pool;
+  try {
+    pool = await sql.connect({
+      connectionString:
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
+    });
+
+    const result = await pool.request().query(`
+      SELECT DepartmentID, DepartmentName 
+      FROM Departments
+      ORDER BY DepartmentName
+    `);
+
+    res.json({ status: "success", data: result.recordset });
+  } catch (error) {
+    console.error("Error fetching departments:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+//----------------------------------------------- GET incidents for a specific department-------------------------------------------
+
+app.get("/departments/:departmentId", async (req, res) => {
+  const { departmentId } = req.params;
+  let pool;
+  try {
+    pool = await sql.connect({
+      connectionString:
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
+    });
+
+    const result = await pool.request()
+      .input("departmentId", sql.Int, departmentId)
+      .query(`
+        SELECT i.IncidentID AS number, i.IncidentDate AS date, i.Location AS location,
+               r.Name AS reporter, i.Status AS status, i.Responded AS responded
+        FROM Incidents i
+        JOIN Reporters r ON i.ReporterID = r.ReporterID
+        WHERE i.DepartmentID = @departmentId
+        ORDER BY i.IncidentDate DESC
+      `);
+
+    res.json({ status: "success", data: result.recordset });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
 
 // ----------------------------------------- login -------------------------------------------------------
 app.post("/login", async (req, res) => {
@@ -193,26 +308,35 @@ app.post("/login", async (req, res) => {
   try {
     pool = await sql.connect({
       connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=NewIncident;Trusted_Connection=Yes;"
+        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
     });
 
-    const userCheck = await pool.request()
+    // Get the user and department in one query
+    const result = await pool.request()
       .input("UserID", sql.Int, UserID)
-      .query(`SELECT UserID, Password FROM Users WHERE UserID = @UserID`);
-    
-    const redirect = await pool.request()
-    .input("UserID", sql.Int, UserID)
-    .query(`SELECT f FROM Users WHERE UserID = @UserID`);
-    if (userCheck.recordset.length === 0) {
+      .query(`
+        SELECT u.UserID, u.UserName, u.Password, d.DepartmentID, d.DepartmentName
+        FROM Users u
+        JOIN Departments d ON u.DepartmentID = d.DepartmentID
+        WHERE u.UserID = @UserID
+      `);
+
+    if (result.recordset.length === 0) {
       return res.status(404).json({ status: "error", message: "UserID not found" });
     }
 
-    const user = userCheck.recordset[0];
+    const user = result.recordset[0];
+
     if (user.Password !== Password) {
       return res.status(401).json({ status: "error", message: "Incorrect password" });
     }
 
-    res.json({ status: "success", message: "Login successful" });
+    // Send the department name to the frontend for redirect
+    res.json({
+      status: "success",
+      message: "Login successful",
+      department: user.DepartmentName
+    });
 
   } catch (error) {
     console.error("Error during login:", error);
@@ -222,11 +346,15 @@ app.post("/login", async (req, res) => {
   }
 });
 
+
+
+//-------------------------------------------------------
+
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "build", "index.html"));
 });
 
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
-

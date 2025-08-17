@@ -8,7 +8,7 @@ export default class Login extends Component {
       userId: "",
       password: "",
       message: "",
-      messageType: "", 
+      messageType: "",
       loading: false
     };
   }
@@ -32,7 +32,7 @@ export default class Login extends Component {
     this.setState({ loading: true, message: "", messageType: "" });
 
     try {
-      
+      // Use correct variable names
       const response = await fetch("/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -41,17 +41,21 @@ export default class Login extends Component {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (data.status === "success") {
+        // Save department info
+        localStorage.setItem("departmentId", data.departmentId || data.departmentID);
+        sessionStorage.setItem("departmentName", data.department);
+
         this.setState({
-          message: data.message || "Login successful",
+          message: "Login successful",
           messageType: "success",
           loading: false
         });
 
-        //Redirect after successful login
+        // Redirect to departments page
         setTimeout(() => {
-          window.location.href = "/quality";
-        }, 1000);
+          window.location.href = "/departments";
+        }, 500);
       } else {
         this.setState({
           message: data.message || "Invalid credentials",
@@ -65,6 +69,7 @@ export default class Login extends Component {
         messageType: "error",
         loading: false
       });
+      console.error(error);
     }
   };
 

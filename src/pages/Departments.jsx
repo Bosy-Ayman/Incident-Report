@@ -1,49 +1,56 @@
 import React, { Component } from "react";
 import "./Departments.css";
 //Features:
-//1. select incident Details related to the department for only the  user who have the accessibility to this user (Sele)
+//1. select incident Details related to the department for only the  user who have the accessibility to this user (Select)
 //2. Submit incident Response to the quality Department (Insert)
 //3. Update Status
 export default class Departments extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      incidents: [
-        {
-          number: 1001,
-          date: "2025-08-08",
-          location: "Admin Building",
-          reporter: "Sarah Ali",
-          status: "New",
-          responded: "No",
-        },
-        {
-          number: 1002,
-          date: "2025-08-09",
-          location: "ER",
-          reporter: "Ali Hassan",
-          status: "Closed",
-          responded: "Yes",
-        },
-      
-      ],
+      incidents: [],
       filteredIncidents: [],
       filters: {
         statusFilter: "all",
         responseFilter: "all",
         dateFrom: "",
-        dateTo: "",
+        dateTo: ""
       },
       showDetailsModal: false,
       showUpdateModal: false,
       showQualityModal: false,
-      selectedIncident: null,
+      selectedIncident: null
     };
   }
 
-  componentDidMount() {
-    this.setState({ filteredIncidents: this.state.incidents });
+async componentDidMount() {
+  const departmentId = localStorage.getItem("departmentId");
+  if (!departmentId) {
+    console.error("No departmentId in localStorage");
+    return;
   }
+
+  try {
+    const res = await fetch(`/departments/${departmentId}`);
+    if (!res.ok) throw new Error("Network response was not ok");
+
+    const data = await res.json();
+    console.log("Fetched department data:", data); // check what comes
+
+    // Make sure data.data exists and is an array
+    if (data.status === "success" && Array.isArray(data.data)) {
+      this.setState({ incidents: data.data, filteredIncidents: data.data });
+    } else {
+      console.error("Unexpected data format:", data);
+    }
+  } catch (err) {
+    console.error("Fetch failed:", err);
+  }
+}
+
+
+
+
   // Open and Close Modal
   openDetailsModal = (incident) => {
     this.setState({ showDetailsModal: true, selectedIncident: incident });
@@ -129,10 +136,11 @@ export default class Departments extends Component {
 
     return (
       <div className="quality-dashboard">
-        <header>
-          <img src="alnas-hospital.png" alt="Hospital Logo" />
-          <h1>IT Department Incident Management</h1>
-        </header>
+      <header>
+        <img src="alnas-hospital.png" alt="Hospital Logo" />
+        <h1>{sessionStorage.getItem("departmentName")} Department Incident Management</h1>
+      </header>
+
 
         <main>
           {/* Filters */}
@@ -186,6 +194,8 @@ export default class Departments extends Component {
                 <th>Actions</th>
               </tr>
             </thead>
+            <pre>{JSON.stringify(filteredIncidents, null, 2)}</pre>
+
             <tbody>
               {filteredIncidents.map((incident) => (
                 <tr

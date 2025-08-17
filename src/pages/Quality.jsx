@@ -10,24 +10,34 @@ export default class Quality extends Component {
       showDetailsModal: false,
       showUpdateModal: false,
       selectedIncident: null,
-      selectedDepartmentId: ""
+      selectedDepartmentId: "",
+      categorization: "",
+      type: [],
+      riskScoring: "",
+      effectiveness: "",
+      comment: ""
     };
-  }
 
-  componentDidMount() {
-    fetch("/quality")
-      .then(res => res.json())
-      .then(data => {
-        this.setState({
-          incidents: Array.isArray(data.incidents) ? data.incidents : [],
-          departments: Array.isArray(data.departments) ? data.departments : []
-        });
-      })
-      .catch(err => {
-        console.error("Error fetching data:", err);
-        this.setState({ incidents: [], departments: [] });
-      });
   }
+componentDidMount() {
+  // Fetch incidents
+  fetch("/quality")
+    .then(res => res.json())
+    .then(data => {
+      this.setState({ incidents: Array.isArray(data.data) ? data.data : [] });
+    })
+    .catch(err => console.error(err));
+
+  // Fetch departments
+  fetch("/departments")
+    .then(res => res.json())
+    .then(data => {
+      console.log("Fetched departments:", data); // Debug
+      this.setState({ departments: data });
+    })
+    .catch(err => console.error(err));
+}
+
 
   openDetailsModal = (incident) => {
     this.setState({
@@ -49,38 +59,63 @@ export default class Quality extends Component {
     this.setState({ showUpdateModal: false, selectedIncident: null });
   };
 
+  // Handle Update Submit
   handleUpdateSubmit = (e) => {
     e.preventDefault();
-    alert("Update submitted!");
-    this.closeUpdateModal();
-  };
+    const {
+      selectedIncident,
+      categorization,
+      type,
+      riskScoring,
+      effectiveness,
+      comment
+    } = this.state;
 
-  // NEW: Assign incident to department
-  handleAssignDepartment = () => {
-    const { selectedIncident, selectedDepartmentId } = this.state;
-    if (!selectedDepartmentId) {
-      alert("Please select a department before submitting.");
-      return;
-    }
-
-    fetch(`/assign-incident`, {
-      method: "POST",
+    fetch(`/quality`, {
+      method: "PUT", 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         incidentId: selectedIncident.IncidentID,
-        departmentId: selectedDepartmentId
+        categorization,
+        type,
+        riskScoring,
+        effectiveness,
+        comment
       })
     })
       .then(res => res.json())
       .then(data => {
-        alert(data.message || "Incident assigned successfully.");
-        this.closeDetailsModal();
+        alert(data.message || "Incident updated successfully!");
+        this.closeUpdateModal();
       })
       .catch(err => {
-        console.error("Error assigning department:", err);
-        alert("Failed to assign department.");
+        console.error("Error updating incident:", err);
+        alert("Failed to update incident.");
       });
   };
+
+handleAssignDepartment = () => {
+  const { selectedIncident, selectedDepartmentId } = this.state;
+
+  fetch("/quality", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      incidentId: selectedIncident.IncidentID,
+      departmentId: selectedDepartmentId
+    })
+  })
+    .then(res => res.json())
+    .then(() => {
+      // Refresh incidents after update
+      this.componentDidMount();
+      this.setState({ showDetailsModal: false, selectedDepartmentId: "" });
+    })
+    .catch(err => console.error("Error assigning department:", err));
+};
+
 
   render() {
     const {
@@ -214,25 +249,25 @@ export default class Quality extends Component {
 
               <h2>Send to the Department</h2>
               <div id="filters">
-                <select
-                  value={selectedDepartmentId}
-                  onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.DepartmentID} value={dept.DepartmentID}>
-                      {dept.DepartmentName}
-                    </option>
-                  ))}
-                </select>
+              <select
+              value={this.state.selectedDepartmentId}
+              onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
+            >
+              <option value="">Select Department</option>
+              {this.state.departments.map(dept => (
+                <option key={dept.DepartmentID} value={dept.DepartmentID}>
+                  {dept.DepartmentName}
+                </option>
+              ))}
+            </select>
+
                 <button onClick={this.handleAssignDepartment}>Submit</button>
               </div>
             </div>
           </div>
 
           {/* Update Modal */}
-          {/* (rest of your update modal code remains unchanged) */}
-             {/* Update Modal */}
+
           <div
             className={`modal-bg ${showUpdateModal ? "active" : ""}`}
             onClick={this.closeUpdateModal}
