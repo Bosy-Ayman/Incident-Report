@@ -32,7 +32,8 @@ export default class IncidentForm extends Component {
     data.patientChecked = this.state.patientChecked;
     data.employeeChecked = this.state.employeeChecked;
     data.visitorChecked = this.state.visitorChecked;
-
+    
+    // Post: so that it can recieve the form info into the database
     fetch("/incident-form", {
       method: "POST",
       headers: {

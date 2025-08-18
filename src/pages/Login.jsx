@@ -53,9 +53,10 @@ export default class Login extends Component {
         });
 
         // Redirect to departments page
-        setTimeout(() => {
-          window.location.href = "/departments";
-        }, 500);
+      setTimeout(() => {
+        window.location.href = `/departments/${data.departmentId || data.departmentID}`;
+      }, 500);
+
       } else {
         this.setState({
           message: data.message || "Invalid credentials",

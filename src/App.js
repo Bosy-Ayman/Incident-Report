@@ -3,6 +3,7 @@ import Login from "./pages/Login";
 import IncidentForm from "./pages/IncidentForm";
 import Quality from "./pages/Quality";
 import Departments from "./pages/Departments";
+import Dashboard from "./pages/Dashboard";
 
 function App() {
   return (
@@ -11,8 +12,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/incident-form" element={<IncidentForm />} />
         <Route path="/quality" element={<Quality />} />
-        <Route path="/departments" element={<Departments />} />
-      </Routes>
+        <Route path="/dashboard" element={<Dashboard/>} />
+        <Route path="/departments/:departmentId" element={<Departments />} />
+       </Routes>
     </Router>
   );
 }

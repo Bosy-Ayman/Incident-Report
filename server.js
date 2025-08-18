@@ -7,6 +7,12 @@ const cors = require("cors");
 const app = express();
 const port = 3000;
 
+const dbConfig = {
+  connectionString:
+    "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=IncidentssReport;Trusted_Connection=Yes;",
+};
+
+module.exports = { sql, dbConfig };
 app.use(cors());
 
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -19,10 +25,7 @@ app.use(express.static(path.join(__dirname, "build")));
 app.post("/incident-form", async (req, res) => {
   let pool;
   try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
+    pool = await sql.connect(dbConfig);
 
     const {
       reporter_name,
@@ -124,16 +127,12 @@ app.post("/incident-form", async (req, res) => {
   }
 });
 
-// ------------------------------------------- UPDATE INCIDEN
-// T FOR QUALITY -------------------------------------------
+// ------------------------------------------- UPDATE INCIDENT FOR QUALITY -------------------------------------------
 
 app.get("/quality", async (req, res) => {
   let pool;
   try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
+    pool = await sql.connect(dbConfig);
 
     const query = `
       SELECT 
@@ -190,10 +189,7 @@ app.put("/quality", async (req, res) => {
 
   let pool;
   try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
+    pool = await sql.connect(dbConfig);
 
     await pool.request()
       .input("incidentId", sql.Int, incidentId)
@@ -213,15 +209,12 @@ app.put("/quality", async (req, res) => {
   }
 });
 
-//------------------------------------------------------------Departments------------------------------------------------------------
+//------------------------------------------ All Departments -------------------------------------------
 
 app.get("/departments", async (req, res) => {
   let pool;
   try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
+    pool = await sql.connect(dbConfig);
 
     const result = await pool.request().query(`
       SELECT DepartmentID, DepartmentName
@@ -238,52 +231,24 @@ app.get("/departments", async (req, res) => {
   }
 });
 
-
-
-// ====================== GET DEPARTMENTS (for dropdown) ======================
-app.get("/departments", async (req, res) => {
-  let pool;
-  try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
-
-    const result = await pool.request().query(`
-      SELECT DepartmentID, DepartmentName 
-      FROM Departments
-      ORDER BY DepartmentName
-    `);
-
-    res.json({ status: "success", data: result.recordset });
-  } catch (error) {
-    console.error("Error fetching departments:", error);
-    res.status(500).json({ status: "error", message: error.message });
-  } finally {
-    if (pool) await pool.close();
-  }
-});
-
-//----------------------------------------------- GET incidents for a specific department-------------------------------------------
-
+//------------------------------ GET incidents for a specific department-------------------------------
 app.get("/departments/:departmentId", async (req, res) => {
   const { departmentId } = req.params;
   let pool;
   try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
+    pool = await sql.connect(dbConfig);
 
     const result = await pool.request()
       .input("departmentId", sql.Int, departmentId)
       .query(`
         SELECT i.IncidentID AS number, i.IncidentDate AS date, i.Location AS location,
-               r.Name AS reporter, i.Status AS status, i.Responded AS responded
-        FROM Incidents i
-        JOIN Reporters r ON i.ReporterID = r.ReporterID
-        WHERE i.DepartmentID = @departmentId
-        ORDER BY i.IncidentDate DESC
+                r.Name AS reporter, i.Status AS status, i.Responded AS responded,
+                d.DepartmentName
+          FROM Incidents i
+          LEFT JOIN Reporters r ON i.ReporterID = r.ReporterID
+          LEFT JOIN Departments d ON i.DepartmentID = d.DepartmentID
+          WHERE i.DepartmentID = @departmentId
+          ORDER BY i.IncidentDate DESC
       `);
 
     res.json({ status: "success", data: result.recordset });
@@ -295,60 +260,210 @@ app.get("/departments/:departmentId", async (req, res) => {
   }
 });
 
-
 // ----------------------------------------- login -------------------------------------------------------
 app.post("/login", async (req, res) => {
   const { UserID, Password } = req.body;
 
   if (!UserID || !Password) {
-    return res.status(400).json({ status: "error", message: "UserID and Password are required" });
+    return res.status(400).json({
+      status: "error",
+      message: "UserID and Password are required",
+    });
   }
 
   let pool;
   try {
-    pool = await sql.connect({
-      connectionString:
-        "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=incident_form;Trusted_Connection=Yes;"
-    });
+    pool = await sql.connect(dbConfig);
 
-    // Get the user and department in one query
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("UserID", sql.Int, UserID)
       .query(`
-        SELECT u.UserID, u.UserName, u.Password, d.DepartmentID, d.DepartmentName
+        SELECT u.UserID, u.UserName, u.Password,
+               d.DepartmentID, d.DepartmentName
         FROM Users u
-        JOIN Departments d ON u.DepartmentID = d.DepartmentID
+        LEFT JOIN Departments d ON u.DepartmentID = d.DepartmentID
         WHERE u.UserID = @UserID
       `);
 
     if (result.recordset.length === 0) {
-      return res.status(404).json({ status: "error", message: "UserID not found" });
+      return res.status(404).json({
+        status: "error",
+        message: "UserID not found",
+      });
     }
 
     const user = result.recordset[0];
 
     if (user.Password !== Password) {
-      return res.status(401).json({ status: "error", message: "Incorrect password" });
+      return res.status(401).json({
+        status: "error",
+        message: "Incorrect password",
+      });
     }
 
-    // Send the department name to the frontend for redirect
-    res.json({
+
+    return res.json({
       status: "success",
       message: "Login successful",
-      department: user.DepartmentName
+      userId: user.UserID,
+      userName: user.UserName,
+      departmentId: user.DepartmentID,
+      departmentName: user.DepartmentName,
     });
 
   } catch (error) {
     console.error("Error during login:", error);
-    res.status(500).json({ status: "error", message: error.message });
+    return res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
   } finally {
     if (pool) await pool.close();
   }
 });
 
 
+//-----------------------------   Get  Department Response ------------------------
 
-//-------------------------------------------------------
+app.get('/department-response', async (req, res) => {
+  const { UserID } = req.query; 
+
+  if (!UserID) {
+    return res.status(400).json({ error: "UserID is required" });
+  }
+
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+    const result = await pool
+      .request()
+      .input("UserID", sql.Int, UserID)
+      .query(`
+          SELECT u.UserID, u.UserName,  
+                d.ResponseID, d.IncidentID,d.DepartmentName, d.DepartmentID, d.Reason, 
+                d.CorrectiveAction, d.ResponseDate, d.ResponseTime, d.Version
+          FROM Users u
+          JOIN DepartmentResponse d ON u.DepartmentID = d.DepartmentID
+          WHERE u.UserID = @UserID
+
+      `);
+
+    res.json(result.recordset); 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    if (pool) pool.close();
+  }
+});
+
+// ------------------- UPDATE Department Response -------------------
+
+app.put("/department-response", async (req, res) => {
+  const { ResponseID, IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate } = req.body;
+
+  if (!IncidentID || !DepartmentID) {
+    return res.status(400).json({ status: "error", message: "IncidentID and DepartmentID are required" });
+  }
+
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+    if (ResponseID) {
+      // UPDATE existing response
+      await pool.request()
+        .input("ResponseID", sql.Int, ResponseID)
+        .input("Reason", sql.NVarChar, Reason)
+        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
+        .input("ResponseDate", sql.Date, ResponseDate || null)
+        .query(`
+          UPDATE DepartmentResponse
+          SET Reason = @Reason,
+              CorrectiveAction = @CorrectiveAction,
+              ResponseDate = @ResponseDate
+          WHERE ResponseID = @ResponseID
+        `);
+      res.json({ status: "success", message: "Response updated successfully" });
+    } else {
+      // INSERT new response
+      const result = await pool.request()
+        .input("IncidentID", sql.Int, IncidentID)
+        .input("DepartmentID", sql.Int, DepartmentID)
+        .input("Reason", sql.NVarChar, Reason)
+        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
+        .input("ResponseDate", sql.Date, ResponseDate || null)
+        .query(`
+          INSERT INTO DepartmentResponse (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate)
+          VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate);
+          SELECT SCOPE_IDENTITY() AS ResponseID;
+        `);
+
+      const newResponseID = result.recordset[0].ResponseID;
+      res.json({ status: "success", message: "Response created successfully", ResponseID: newResponseID });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: err.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+// ------------------------ UPDATE Department Response --------------------------
+
+app.post("/responses", async (req, res) => {
+  const { incidentId, departmentId, reason, correctiveAction } = req.body;
+  
+  try {
+    pool = await sql.connect(dbConfig);
+    await pool.request()
+      .input("IncidentID", sql.Int, incidentId)
+      .input("DepartmentID", sql.Int, departmentId)
+      .input("Reason", sql.Text, reason)
+      .input("CorrectiveAction", sql.Text, correctiveAction)
+      .input("ResponseDate", sql.Date, new Date())
+      .input("ResponseTime", sql.Time, new Date())
+      .input("Version", sql.Int, 1)
+      .query(`
+        INSERT INTO DepartmentResponse 
+          (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, ResponseTime, Version)
+        VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @ResponseTime, @Version)
+      `);
+
+    res.status(200).json({ message: "Response saved successfully" });
+  } catch (err) {
+    console.error("Error inserting response:", err);
+    res.status(500).json({ error: "Failed to save response" });
+  }
+});
+
+//------------------------------------------------------------------------
+app.get("/quality/responses", async (req, res) => {
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+
+    const result = await pool.request().query(`
+      SELECT dr.ResponseID, dr.IncidentID, dr.Reason, dr.CorrectiveAction, 
+             dr.ResponseDate, dr.ResponseTime, dr.Version,
+             d.DepartmentName, i.Description AS IncidentDescription
+      FROM DepartmentResponse dr
+      JOIN Departments d ON dr.DepartmentID = d.DepartmentID
+      JOIN Incidents i ON dr.IncidentID = i.IncidentID
+    `);
+
+    res.json({ status: "success", data: result.recordset });
+  } catch (err) {
+    console.error("Error fetching responses:", err);
+    res.status(500).json({ error: "Failed to fetch responses" });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+
+//-----------------------------------------------------------------------------------
 
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "build", "index.html"));

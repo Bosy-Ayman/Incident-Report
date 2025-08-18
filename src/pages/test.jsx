@@ -1,53 +1,74 @@
 import React, { Component } from "react";
-import "./Quality.css";
+import "./Departments.css";
 
-export default class Quality extends Component {
+export default class Departments extends Component {
   constructor(props) {
     super(props);
     this.state = {
       incidents: [],
-      departments: [],
+      filteredIncidents: [],
+      filters: {
+        statusFilter: "all",
+        responseFilter: "all",
+        dateFrom: "",
+        dateTo: ""
+      },
       showDetailsModal: false,
       showUpdateModal: false,
-      selectedIncident: null,
-      selectedDepartmentId: ""
+      showQualityModal: false,
+      selectedIncident: null
     };
   }
 
-  componentDidMount() {
-    fetch("/quality")
-      .then(res => res.json())
-      .then(data => {
-        this.setState({
-          incidents: Array.isArray(data.incidents) ? data.incidents : [],
-          departments: Array.isArray(data.departments) ? data.departments : []
-        });
-      })
-      .catch(err => {
-        console.error("Error fetching data:", err);
-        this.setState({ incidents: [], departments: [] });
-      });
+  async componentDidMount() {
+    const urlParts = window.location.pathname.split("/");
+    const departmentId = urlParts[urlParts.length - 1];
+
+    if (!departmentId || isNaN(departmentId)) {
+      console.error("Invalid departmentId in URL");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/departments/${departmentId}`);
+      if (!res.ok) throw new Error("Network response was not ok");
+
+      const data = await res.json();
+      console.log("Fetched department data:", JSON.stringify(data, null, 2));
+
+      if (data.status === "success" && Array.isArray(data.data)) {
+        this.setState({ incidents: data.data, filteredIncidents: data.data });
+      } else {
+        console.error("Unexpected data format:", data);
+      }
+    } catch (err) {
+      console.error("Fetch failed:", err);
+    }
   }
 
-  openDetailsModal = (incident) => {
-    this.setState({
-      showDetailsModal: true,
-      selectedIncident: incident,
-      selectedDepartmentId: "" // reset selection each time
+  openDetailsModal = (incident) => this.setState({
+  showDetailsModal: true,
+  selectedIncident: incident
+ });
+  closeDetailsModal = () => this.setState({ 
+    showDetailsModal: false,
+     selectedIncident: null 
+  });
+  openUpdateModal = (incident) => this.setState({ 
+    showUpdateModal: true,
+     selectedIncident: incident 
     });
-  };
-
-  closeDetailsModal = () => {
-    this.setState({ showDetailsModal: false, selectedIncident: null });
-  };
-
-  openUpdateModal = (incident) => {
-    this.setState({ showUpdateModal: true, selectedIncident: incident });
-  };
-
-  closeUpdateModal = () => {
-    this.setState({ showUpdateModal: false, selectedIncident: null });
-  };
+  closeUpdateModal = () => this.setState({ 
+    showUpdateModal: false, 
+    selectedIncident: null
+   });
+  openQualityModal = (incident) => this.setState({
+     showQualityModal: true, 
+     selectedIncident: incident 
+    });
+  closeQualityModal = () => this.setState({ 
+    showQualityModal: false, selectedIncident: null
+   });
 
   handleUpdateSubmit = (e) => {
     e.preventDefault();
@@ -55,55 +76,61 @@ export default class Quality extends Component {
     this.closeUpdateModal();
   };
 
-  // NEW: Assign incident to department
-  handleAssignDepartment = () => {
-    const { selectedIncident, selectedDepartmentId } = this.state;
-    if (!selectedDepartmentId) {
-      alert("Please select a department before submitting.");
-      return;
-    }
+  handleFilterChange = (e) => {
+    const { id, value } = e.target;
+    this.setState((prev) => ({
+      filters: { ...prev.filters, [id]: value }
+    }));
+  };
 
-    fetch(`/assign-incident`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        incidentId: selectedIncident.IncidentID,
-        departmentId: selectedDepartmentId
-      })
-    })
-      .then(res => res.json())
-      .then(data => {
-        alert(data.message || "Incident assigned successfully.");
-        this.closeDetailsModal();
-      })
-      .catch(err => {
-        console.error("Error assigning department:", err);
-        alert("Failed to assign department.");
-      });
+  applyFilters = () => {
+    const { incidents, filters } = this.state;
+
+    const filtered = incidents.filter((inc) => {
+      const incidentDate = new Date(inc.date);
+      const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const toDate = filters.dateTo ? new Date(filters.dateTo) : null;
+
+      if (filters.statusFilter !== "all" && inc.status !== filters.statusFilter) return false;
+      if (filters.responseFilter !== "all" && inc.responded.toLowerCase() !== filters.responseFilter.toLowerCase()) return false;
+      if (fromDate && incidentDate < fromDate) return false;
+      if (toDate && incidentDate > toDate) return false;
+
+      return true;
+    });
+
+    this.setState({ filteredIncidents: filtered });
+  };
+
+  clearFilters = () => {
+    this.setState((prev) => ({
+      filters: { statusFilter: "all", responseFilter: "all", dateFrom: "", dateTo: "" },
+      filteredIncidents: prev.incidents
+    }));
   };
 
   render() {
     const {
-      incidents,
-      departments,
+      filteredIncidents,
+      filters,
       showDetailsModal,
       showUpdateModal,
-      selectedIncident,
-      selectedDepartmentId
+      showQualityModal,
+      selectedIncident
     } = this.state;
 
     return (
       <div className="quality-dashboard">
         <header>
           <img src="alnas-hospital.png" alt="Hospital Logo" />
-          <h1>Quality Department Dashboard</h1>
+          <h1>{sessionStorage.getItem("departmentName")} Department Incident Management</h1>
         </header>
 
         <main>
           {/* Filters */}
           <div id="filters">
-            <label htmlFor="statusFilter">Status:</label>
-            <select id="statusFilter">
+            <label>Status:</label>
+            <select id="statusFilter" value={filters.statusFilter} onChange={this.handleFilterChange}>
               <option value="all">All</option>
               <option value="New">New</option>
               <option value="Assigned">Assigned</option>
@@ -111,24 +138,26 @@ export default class Quality extends Component {
               <option value="Closed">Closed</option>
             </select>
 
-            <label htmlFor="responseFilter">Responded by Dept:</label>
-            <select id="responseFilter">
+            <label>Responded by Dept:</label>
+            <select id="responseFilter" value={filters.responseFilter} onChange={this.handleFilterChange}>
               <option value="all">All</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
             </select>
 
-            <label htmlFor="dateFrom">From Date:</label>
-            <input type="date" id="dateFrom" />
+            <label>From Date:</label>
+            <input type="date" id="dateFrom" value={filters.dateFrom} onChange={this.handleFilterChange} />
+            <label>To Date:</label>
+            <input type="date" id="dateTo" value={filters.dateTo} onChange={this.handleFilterChange} />
 
-            <label htmlFor="dateTo">To Date:</label>
-            <input type="date" id="dateTo" />
-
-            <button>Filter</button>
-            <button>Clear</button>
+            <button onClick={this.applyFilters}>Filter</button>
+            <button onClick={this.clearFilters}>Clear</button>
           </div>
 
-          {/* Incident Table */}
+          {/* Debug JSON */}
+          <pre>{JSON.stringify(filteredIncidents, null, 2)}</pre>
+
+          {/* Incidents Table */}
           <table id="incidentTable">
             <thead>
               <tr>
@@ -137,246 +166,92 @@ export default class Quality extends Component {
                 <th>Location</th>
                 <th>Reporter</th>
                 <th>Status</th>
-                <th>Responded by Dept</th>
+                <th>Responded</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {incidents.length === 0 ? (
-                <tr>
-                  <td colSpan="7" style={{ textAlign: "center" }}>
-                    No incidents found.
+              {filteredIncidents.map((incident) => (
+                <tr key={incident.number}>
+                  <td>{incident.number}</td>
+                  <td>{incident.date}</td>
+                  <td>{incident.location}</td>
+                  <td>{incident.reporter}</td>
+                  <td className={`status-${incident.status.replace(/\s/g, "")}`}>{incident.status}</td>
+                  <td>{incident.responded}</td>
+                  <td>
+                    <button onClick={() => this.openDetailsModal(incident)}>Details</button>
+                    <button onClick={() => this.openUpdateModal(incident)}>Update</button>
+                    <button onClick={() => this.openQualityModal(incident)}>Quality Response</button>
                   </td>
                 </tr>
-              ) : (
-                incidents.map((incident) => (
-                  <tr
-                    key={incident.IncidentID}
-                    data-status={incident.status}
-                    data-responded={incident.responded}
-                    data-date={incident.Date}
-                  >
-                    <td>{incident.IncidentID}</td>
-                    <td>{incident.Date}</td>
-                    <td>{incident.Location}</td>
-                    <td>{incident.ReporterName}</td>
-                    <td className={`status-${incident.status}`}>{incident.status}</td>
-                    <td>{incident.responded}</td>
-                    <td>
-                      <button
-                        className="details-btn"
-                        onClick={() => this.openDetailsModal(incident)}
-                      >
-                        Details
-                      </button>
-                      <button
-                        className="update-btn"
-                        onClick={() => this.openUpdateModal(incident)}
-                        style={{ marginLeft: "10px" }}
-                      >
-                        Update
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
 
-          {/* Details Modal */}
-          <div
-            className={`modal-bg ${showDetailsModal ? "active" : ""}`}
-            onClick={this.closeDetailsModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="details-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeDetailsModal}
-                aria-label="Close details modal"
-              >
-                ×
-              </button>
-
-              <h2 id="details-title">Incident Details</h2>
-              {selectedIncident && (
-                <>
-                  <p><strong>Incident No:</strong> {selectedIncident.IncidentID}</p>
-                  <p><strong>Date:</strong> {selectedIncident.Date}</p>
-                  <p><strong>Location:</strong> {selectedIncident.Location}</p>
-                  <p><strong>Reporter:</strong> {selectedIncident.ReporterName}</p>
+          {/* Modals */}
+          {selectedIncident && (
+            <>
+              {/* Details Modal */}
+              <div className={`modal-bg ${showDetailsModal ? "active" : ""}`} onClick={this.closeDetailsModal}>
+                <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                  <button className="close-btn" onClick={this.closeDetailsModal}>×</button>
+                  <h2>Incident Details</h2>
+                  <p><strong>Incident No:</strong> {selectedIncident.number}</p>
+                  <p><strong>Date:</strong> {selectedIncident.date}</p>
+                  <p><strong>Location:</strong> {selectedIncident.location}</p>
+                  <p><strong>Reporter:</strong> {selectedIncident.reporter}</p>
                   <p><strong>Status:</strong> {selectedIncident.status}</p>
-                  <p><strong>Responded:</strong> {selectedIncident.responded ? "Yes" : "No"}</p>
-                </>
-              )}
-
-              <h2>Send to the Department</h2>
-              <div id="filters">
-                <select
-                  value={selectedDepartmentId}
-                  onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
-                >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.DepartmentID} value={dept.DepartmentID}>
-                      {dept.DepartmentName}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={this.handleAssignDepartment}>Submit</button>
+                  <p><strong>Responded:</strong> {selectedIncident.responded}</p>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Update Modal */}
-          {/* (rest of your update modal code remains unchanged) */}
-             {/* Update Modal */}
-          <div
-            className={`modal-bg ${showUpdateModal ? "active" : ""}`}
-            onClick={this.closeUpdateModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="update-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeUpdateModal}
-                aria-label="Close update modal"
-              >
-                ×
-              </button>
-
-              <form onSubmit={this.handleUpdateSubmit}>
-              <h2 id="quality-title">Incident Response</h2>
-              <div className="section">
-                <table className="modal-table">
-                  <thead>
-                    <tr>
-                      <th>Due Date:</th>
-                      <th>Incident Most Probable Causes</th>
-                      <th>Corrective / Preventive Action:</th>
-                        
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                        <td>2025-08-20</td>
-                        <td><span className="status-pending">anythinggg</span></td>
-                        <td>anything             </td>
-                       
-                    </tr>
-          
-                  </tbody>
-                </table>
+              {/* Update Modal */}
+              <div className={`modal-bg ${showUpdateModal ? "active" : ""}`} onClick={this.closeUpdateModal}>
+                <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                  <button className="close-btn" onClick={this.closeUpdateModal}>×</button>
+                  <h2>Update Incident Response</h2>
+                  <form onSubmit={this.handleUpdateSubmit}>
+                    <label>Incident Most Probable Causes:</label>
+                    <input type="text" placeholder="Enter probable causes" required />
+                    <label>Corrective / Preventive Action:</label>
+                    <textarea rows="3" placeholder="Enter corrective action" required />
+                    <label>Due Date:</label>
+                    <input type="date" required />
+                    <button type="submit">Submit Update</button>
+                  </form>
+                </div>
               </div>
-                <h2 id="quality-title">Sending Follow-Up</h2>
 
-                <div className="section">
-                  <table className="modal-table">
+              {/* Quality Modal */}
+              <div className={`modal-bg ${showQualityModal ? "active" : ""}`} onClick={this.closeQualityModal}>
+                <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                  <button className="close-btn" onClick={this.closeQualityModal}>×</button>
+                  <h2>Follow-Up</h2>
+                  <table>
                     <thead>
                       <tr>
                         <th>Follow-Up Date</th>
                         <th>Status</th>
-                        <th>Type</th>
-                        <th>Risk Scoring</th>
-                        <th>Categorization</th>
-                        <th>Effectiveness Result</th>
+                        <th>Effectiveness</th>
                         <th>Comment</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
                         <td>2025-08-20</td>
-                        <td><span className="status-pending">Pending</span></td>
-                        <td>—</td>
-                        <td>—</td>
-                        <td>—</td>
+                        <td>Pending</td>
                         <td>—</td>
                         <td>Awaiting verification of corrective action.</td>
                       </tr>
-                      <tr>
-                        <td>2025-08-25</td>
-                        <td><span className="status-completed">Completed</span></td>
-                         <td>Near Miss Events</td>
-                         <td>—</td>
-                         <td>—</td>
-                        <td><span className="status-effective">Effective</span></td>
-                        <td>Issue resolved and verified.</td>
-                      </tr>
                     </tbody>
                   </table>
-                  {/*This part will show after Recieving the first response from the department*/}
-                  <h3>Categorization</h3><br/>
-                  <textarea
-                    id="Categorization"
-                    rows="2"
-                    placeholder=""
-                  ></textarea>
-
-                  <h3>Type </h3>
-                  <div className="checkbox-group">
-                    <label>
-                      <input type="checkbox" name="type" value="Near Miss Events" />
-                      <strong>Near Miss Events:</strong> any process variation that did not affect an outcome but for which a recurrence carries a significant chance of a serious adverse outcome
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Adverse Events" />
-                      <strong>Adverse Events:</strong> An event that results in injury or ill-health after reaching the patient
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Significant Events" />
-                      <strong>Significant Events:</strong> Significant unexpected events can happen even in hospitals
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Sentinel Events" />
-                      <strong>Sentinel Events</strong>: is a Patient Safety Event that reaches a patient and needs an immediate investigation and response
-                    </label>
-                  </div>
-
-                  
-                  <h3>Risk Scoring</h3>
-                  <div id = 'filters'>
-                    <select>
-                       <option value="RiskScoring">1</option>
-                       <option value="RiskScoring">2</option>
-                       <option value="RiskScoring">3</option>
-                        <option value="RiskScoring">4</option>
-                     <option value="RiskScoring">5</option>
-                    </select> 
-                  </div>
-                   
-                  <h3>Corrective/Preventive Action Effectiveness Review after Implementation:</h3>
-                  <div id = 'filters'>
-                    <select>
-                      <option value="Effectivness"> Effective (OVR Closed) </option>
-                      <option value="Effectiness">Ineffective (Needs another corrective/preventive action) </option>
-
-                    </select> 
-                  </div>
+                  <textarea rows="3" placeholder="Write your reply"></textarea>
+                  <button onClick={() => alert("Reply sent!")}>Send Reply</button>
                 </div>
-                {/* Reply Modal */}
-                <div className="section">
-                  <label htmlFor="quality-reply">Comment </label>
-                  <textarea
-                    id="quality-reply"
-                    rows="3"
-                    placeholder=""
-                  ></textarea>
-                  <br />
-
-                </div>
-
-                <button type="submit" 
-                    className="btn-quality"
-                    onClick={() => alert("Reply sent!")}>
-                  Submit Update
-                </button>
-              </form>
-            </div>
-          </div>
+              </div>
+            </>
+          )}
         </main>
       </div>
     );

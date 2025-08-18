@@ -7,6 +7,7 @@ export default class Quality extends Component {
     this.state = {
       incidents: [],
       departments: [],
+       incidentResponses: [],
       showDetailsModal: false,
       showUpdateModal: false,
       selectedIncident: null,
@@ -19,47 +20,77 @@ export default class Quality extends Component {
     };
 
   }
-componentDidMount() {
-  // Fetch incidents
-  fetch("/quality")
-    .then(res => res.json())
-    .then(data => {
-      this.setState({ incidents: Array.isArray(data.data) ? data.data : [] });
-    })
-    .catch(err => console.error(err));
 
-  // Fetch departments
-  fetch("/departments")
-    .then(res => res.json())
-    .then(data => {
-      console.log("Fetched departments:", data); // Debug
-      this.setState({ departments: data });
-    })
-    .catch(err => console.error(err));
-}
+  componentDidMount() {
+    fetch("/quality")
+      .then(res => res.json())
+      .then(data => {
+        const incidentsArray = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+        this.setState({ incidents: incidentsArray });
+      })
+      .catch(err => console.error(err));
+
+    fetch("/departments")
+      .then(res => res.json())
+      .then(data => this.setState({ departments: Array.isArray(data) ? data : [] }))
+      .catch(err => console.error(err));
+
+    fetch("/quality/responses")
+      .then(res => res.json())
+      .then(data => {
+        console.log("Responses:", data); 
+        this.setState({ 
+          incidentResponses: Array.isArray(data.data) ? data.data : []  
+        });
+      })
+      .catch(err => console.error(err));
+
+    }
 
 
-  openDetailsModal = (incident) => {
+
+  openUpdateModal = (incident) => {
+    const responses = this.state.incidentResponses.filter(
+      r => r.IncidentID == incident.IncidentID
+    );
+
     this.setState({
-      showDetailsModal: true,
-      selectedIncident: incident,
-      selectedDepartmentId: "" // reset selection each time
+      showUpdateModal: true,
+      selectedIncident: { ...incident, Response: responses }
     });
   };
+
+
 
   closeDetailsModal = () => {
     this.setState({ showDetailsModal: false, selectedIncident: null });
   };
 
-  openUpdateModal = (incident) => {
-    this.setState({ showUpdateModal: true, selectedIncident: incident });
+
+  openDetailsModal = (incident) => {
+    this.setState({
+      showDetailsModal: true,
+      selectedIncident: incident
+    });
   };
+  openUpdateModal = (incident) => {
+    const responses = this.state.incidentResponses.filter(
+      r => r.IncidentID == incident.IncidentID
+    );
+
+  console.log("Filtered responses:", responses); 
+
+  this.setState({
+    showUpdateModal: true,
+    selectedIncident: { ...incident, Response: responses }
+  });
+};
+
 
   closeUpdateModal = () => {
     this.setState({ showUpdateModal: false, selectedIncident: null });
   };
 
-  // Handle Update Submit
   handleUpdateSubmit = (e) => {
     e.preventDefault();
     const {
@@ -68,6 +99,7 @@ componentDidMount() {
       type,
       riskScoring,
       effectiveness,
+      incidentResponses,
       comment
     } = this.state;
 
@@ -94,27 +126,34 @@ componentDidMount() {
       });
   };
 
-handleAssignDepartment = () => {
-  const { selectedIncident, selectedDepartmentId } = this.state;
+  handleAssignDepartment = () => {
+    const { selectedIncident, selectedDepartmentId } = this.state;
+    fetch("/responses")
+      .then(res => res.json())
+      .then(data => {
+        console.log("Responses fetched:", data); 
+        this.setState({ incidentResponses: Array.isArray(data) ? data : [] });
+      })
+    .catch(err => console.error(err));
 
-  fetch("/quality", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      incidentId: selectedIncident.IncidentID,
-      departmentId: selectedDepartmentId
+    fetch("/quality", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        incidentId: selectedIncident.IncidentID,
+        departmentId: selectedDepartmentId
+      })
     })
-  })
-    .then(res => res.json())
-    .then(() => {
-      // Refresh incidents after update
-      this.componentDidMount();
-      this.setState({ showDetailsModal: false, selectedDepartmentId: "" });
-    })
-    .catch(err => console.error("Error assigning department:", err));
-};
+      .then(res => res.json())
+      .then(() => {
+        // Refresh incidents after update
+        this.componentDidMount();
+        this.setState({ showDetailsModal: false, selectedDepartmentId: "" });
+      })
+      .catch(err => console.error("Error assigning department:", err));
+  };
 
 
   render() {
@@ -124,6 +163,8 @@ handleAssignDepartment = () => {
       showDetailsModal,
       showUpdateModal,
       selectedIncident,
+        incidentResponses,
+
       selectedDepartmentId
     } = this.state;
 
@@ -244,6 +285,8 @@ handleAssignDepartment = () => {
                   <p><strong>Reporter:</strong> {selectedIncident.ReporterName}</p>
                   <p><strong>Status:</strong> {selectedIncident.status}</p>
                   <p><strong>Responded:</strong> {selectedIncident.responded ? "Yes" : "No"}</p>
+                  <p><strong>Assigned Department:</strong> {}</p>
+
                 </>
               )}
 
@@ -285,71 +328,66 @@ handleAssignDepartment = () => {
               </button>
 
               <form onSubmit={this.handleUpdateSubmit}>
-              <h2 id="quality-title">Incident Response</h2>
               <div className="section">
-                <table className="modal-table">
-                  <thead>
-                    <tr>
-                      <th>Due Date:</th>
-                      <th>Incident Most Probable Causes</th>
-                      <th>Corrective / Preventive Action:</th>
-                        
+              <h2>Incident Response</h2>
+              <table className="modal-table">
+                <thead>
+                  <tr>
+                    <th>Due Date</th>
+                    <th>Incident Most Probable Causes</th>
+                    <th>Corrective / Preventive Action</th>
+                    <th>Department</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedIncident && selectedIncident.Response && selectedIncident.Response.length > 0 ? (
+                  selectedIncident.Response.map((resp, index) => (
+                    <tr key={index}>
+                      <td>{resp.ResponseDate || "—"}</td>
+                      <td>{resp.Reason || "—"}</td>
+                      <td>{resp.CorrectiveAction || "—"}</td>
+                      <td>{resp.DepartmentName || "—"}</td>  {/* Extra column */}
                     </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                        <td>2025-08-20</td>
-                        <td><span className="status-pending">anythinggg</span></td>
-                        <td>anything             </td>
-                       
-                    </tr>
-          
-                  </tbody>
-                </table>
-              </div>
-                <h2 id="quality-title">Sending Follow-Up</h2>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: "center" }}>No response data</td>
+                  </tr>
+                )}
+            </tbody>
 
+              </table>
+            </div>
                 <div className="section">
                   <table className="modal-table">
                     <thead>
                       <tr>
                         <th>Follow-Up Date</th>
                         <th>Status</th>
-                        <th>Type</th>
-                        <th>Risk Scoring</th>
-                        <th>Categorization</th>
                         <th>Effectiveness Result</th>
                         <th>Comment</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td>2025-08-20</td>
-                        <td><span className="status-pending">Pending</span></td>
+                      {/* <tr>
+                        <td>2025-08-17</td>
+                        <td><span className="status-pending">pending</span></td>
                         <td>—</td>
                         <td>—</td>
                         <td>—</td>
                         <td>—</td>
-                        <td>Awaiting verification of corrective action.</td>
-                      </tr>
-                      <tr>
-                        <td>2025-08-25</td>
-                        <td><span className="status-completed">Completed</span></td>
-                         <td>Near Miss Events</td>
-                         <td>—</td>
-                         <td>—</td>
-                        <td><span className="status-effective">Effective</span></td>
-                        <td>Issue resolved and verified.</td>
-                      </tr>
+                        <td>Awaiting verification</td>
+                      </tr> */}
                     </tbody>
                   </table>
-                  {/*This part will show after Recieving the first response from the department*/}
-                  <h3>Categorization</h3><br/>
-                  <textarea
-                    id="Categorization"
+
+                <h3>Categorization</h3><br/>
+               <textarea
+                    value={this.state.categorization}
+                    onChange={(e) => this.setState({ categorization: e.target.value })}
                     rows="2"
                     placeholder=""
-                  ></textarea>
+                  />
 
                   <h3>Type </h3>
                   <div className="checkbox-group">
@@ -382,7 +420,7 @@ handleAssignDepartment = () => {
                      <option value="RiskScoring">5</option>
                     </select> 
                   </div>
-                   
+
                   <h3>Corrective/Preventive Action Effectiveness Review after Implementation:</h3>
                   <div id = 'filters'>
                     <select>
@@ -391,17 +429,6 @@ handleAssignDepartment = () => {
 
                     </select> 
                   </div>
-                </div>
-                {/* Reply Modal */}
-                <div className="section">
-                  <label htmlFor="quality-reply">Comment </label>
-                  <textarea
-                    id="quality-reply"
-                    rows="3"
-                    placeholder=""
-                  ></textarea>
-                  <br />
-
                 </div>
 
                 <button type="submit" 
@@ -412,6 +439,118 @@ handleAssignDepartment = () => {
               </form>
             </div>
           </div>
+          <div
+            className={`modal-bg ${showUpdateModal ? "active" : ""}`}
+            onClick={this.closeUpdateModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="update-title"
+          >
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+              <button
+                className="close-btn"
+                onClick={this.closeUpdateModal}
+                aria-label="Close update modal"
+              >
+                ×
+              </button>
+
+              <form onSubmit={this.handleUpdateSubmit}>
+              <div className="section">
+              <h2>Incident Response</h2>
+              <table className="modal-table">
+                <thead>
+                  <tr>
+                    <th>Due Date</th>
+                    <th>Incident Most Probable Causes</th>
+                    <th>Corrective / Preventive Action</th>
+                    <th>Department</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedIncident && selectedIncident.Response && selectedIncident.Response.length > 0 ? (
+                  selectedIncident.Response.map((resp, index) => (
+                    <tr key={index}>
+                      <td>{resp.ResponseDate || "—"}</td>
+                      <td>{resp.Reason || "—"}</td>
+                      <td>{resp.CorrectiveAction || "—"}</td>
+                      <td>{resp.DepartmentName || "—"}</td>  
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: "center" }}>No response data</td>
+                  </tr>
+                )}
+            </tbody>
+
+              </table>
+            </div>
+
+              <h2 id="quality-title">Sending Follow-Up</h2>
+
+              <div className="section">
+
+              <h3>Categorization</h3><br/>
+               <textarea
+                    value={this.state.categorization}
+                    onChange={(e) => this.setState({ categorization: e.target.value })}
+                    rows="2"
+                    placeholder=""
+                  />
+
+                  <h3>Type </h3>
+                  <div className="checkbox-group">
+                    <label>
+                      <input type="checkbox" name="type" value="Near Miss Events" />
+                      <strong>Near Miss Events:</strong> any process variation that did not affect an outcome but for which a recurrence carries a significant chance of a serious adverse outcome
+                    </label><br/><br/>
+                    <label>
+                      <input type="checkbox" name="type" value="Adverse Events" />
+                      <strong>Adverse Events:</strong> An event that results in injury or ill-health after reaching the patient
+                    </label><br/><br/>
+                    <label>
+                      <input type="checkbox" name="type" value="Significant Events" />
+                      <strong>Significant Events:</strong> Significant unexpected events can happen even in hospitals
+                    </label><br/><br/>
+                    <label>
+                      <input type="checkbox" name="type" value="Sentinel Events" />
+                      <strong>Sentinel Events</strong>: is a Patient Safety Event that reaches a patient and needs an immediate investigation and response
+                    </label>
+                  </div>
+
+                  
+                  <h3>Risk Scoring</h3>
+                  <div id = 'filters'>
+                    <select>
+                       <option value="RiskScoring">1</option>
+                       <option value="RiskScoring">2</option>
+                       <option value="RiskScoring">3</option>
+                        <option value="RiskScoring">4</option>
+                     <option value="RiskScoring">5</option>
+                    </select> 
+                  </div>
+
+                  <h3>Corrective/Preventive Action Effectiveness Review after Implementation:</h3>
+                  <div id = 'filters'>
+                    <select>
+                      <option value="Effectivness"> Effective (OVR Closed) </option>
+                      <option value="Effectiness">Ineffective (Needs another corrective/preventive action) </option>
+
+                    </select> 
+                  </div>
+                </div>
+
+                <button type="submit" 
+                    className="btn-quality"
+                    onClick={() => alert("Reply sent!")}>
+                  Submit Update
+                </button>
+              </form>
+            </div>
+            
+          </div>
+
         </main>
       </div>
     );

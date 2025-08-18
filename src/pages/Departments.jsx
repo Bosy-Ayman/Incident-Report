@@ -4,12 +4,15 @@ import "./Departments.css";
 //1. select incident Details related to the department for only the  user who have the accessibility to this user (Select)
 //2. Submit incident Response to the quality Department (Insert)
 //3. Update Status
+
 export default class Departments extends Component {
   constructor(props) {
     super(props);
     this.state = {
       incidents: [],
       filteredIncidents: [],
+      selectedIncident: null,
+      departmentName: "", 
       filters: {
         statusFilter: "all",
         responseFilter: "all",
@@ -19,39 +22,30 @@ export default class Departments extends Component {
       showDetailsModal: false,
       showUpdateModal: false,
       showQualityModal: false,
-      selectedIncident: null
     };
   }
 
-async componentDidMount() {
-  const departmentId = localStorage.getItem("departmentId");
-  if (!departmentId) {
-    console.error("No departmentId in localStorage");
-    return;
-  }
+  async componentDidMount() {
+    const urlParts = window.location.pathname.split("/");
+    const departmentId = urlParts[urlParts.length - 1];
 
-  try {
-    const res = await fetch(`/departments/${departmentId}`);
-    if (!res.ok) throw new Error("Network response was not ok");
+    try {
+      const res = await fetch(`/departments/${departmentId}`);
+      const data = await res.json();
 
-    const data = await res.json();
-    console.log("Fetched department data:", data); // check what comes
-
-    // Make sure data.data exists and is an array
-    if (data.status === "success" && Array.isArray(data.data)) {
-      this.setState({ incidents: data.data, filteredIncidents: data.data });
-    } else {
-      console.error("Unexpected data format:", data);
+      if (data.status === "success" && Array.isArray(data.data)) {
+        this.setState({ 
+          incidents: data.data, 
+          filteredIncidents: data.data, 
+          departmentName: data.data[0]?.DepartmentName || `Department ${departmentId}`
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      this.setState({ departmentName: `Department ${departmentId}` });
     }
-  } catch (err) {
-    console.error("Fetch failed:", err);
   }
-}
 
-
-
-
-  // Open and Close Modal
   openDetailsModal = (incident) => {
     this.setState({ showDetailsModal: true, selectedIncident: incident });
   };
@@ -76,11 +70,59 @@ async componentDidMount() {
     this.setState({ showQualityModal: false, selectedIncident: null });
   };
 
-  handleUpdateSubmit = (e) => {
+  handleUpdateSubmit = async (e) => {
     e.preventDefault();
-    alert("Update submitted!");
-    this.closeUpdateModal();
+    const { selectedIncident } = this.state;
+
+    if (!selectedIncident) {
+      alert("No incident selected!");
+      return;
+    }
+
+    const probableCauses = e.target["probable-causes"].value;
+    const correctiveAction = e.target["corrective-action"].value;
+    const dueDate = e.target["due-date"].value;
+
+    // Extract departmentId from URL
+    const urlParts = window.location.pathname.split("/");
+    const departmentId = parseInt(urlParts[urlParts.length - 1]);
+
+    if (!departmentId) {
+      alert("Department ID not found in URL!");
+      return;
+    }
+
+    const body = {
+      ResponseID: selectedIncident.ResponseID,
+      IncidentID: selectedIncident.number,    
+      DepartmentID: departmentId,            
+      Reason: probableCauses,
+      CorrectiveAction: correctiveAction,
+      ResponseDate: dueDate,
+    };
+
+    try {
+      const res = await fetch("/department-response", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        alert("Update submitted!");
+        this.closeUpdateModal();
+      } else {
+        alert("Update failed: " + (result.error || "Unknown error"));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network error: " + err.message);
+    }
   };
+
+
 
   handleFilterChange = (e) => {
     const { id, value } = e.target;
@@ -137,11 +179,9 @@ async componentDidMount() {
     return (
       <div className="quality-dashboard">
       <header>
-        <img src="alnas-hospital.png" alt="Hospital Logo" />
-        <h1>{sessionStorage.getItem("departmentName")} Department Incident Management</h1>
+      <img src="/alnas-hospital.png" alt="Hospital Logo" />
+      <h1>{this.state.departmentName} Department Incident Management</h1>
       </header>
-
-
         <main>
           {/* Filters */}
           <div id="filters">
@@ -194,7 +234,6 @@ async componentDidMount() {
                 <th>Actions</th>
               </tr>
             </thead>
-            <pre>{JSON.stringify(filteredIncidents, null, 2)}</pre>
 
             <tbody>
               {filteredIncidents.map((incident) => (
@@ -281,23 +320,25 @@ async componentDidMount() {
             </div>
           </div>
 
-          {/* Update Modal */}
-          <div
-            className={`modal-bg ${showUpdateModal ? "active" : ""}`}
-            onClick={this.closeUpdateModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="update-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeUpdateModal}
-                aria-label="Close update modal"
-              >
-                ×
-              </button>
-              <h2 id="update-title">Update Incident Response</h2>
+        {/* Update Modal */}
+        <div
+          className={`modal-bg ${showUpdateModal ? "active" : ""}`}
+          onClick={this.closeUpdateModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="update-title"
+        >
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="close-btn"
+              onClick={this.closeUpdateModal}
+              aria-label="Close update modal"
+            >
+              ×
+            </button>
+            <h2 id="update-title">Update Incident Response</h2>
+
+            {selectedIncident && (
               <form onSubmit={this.handleUpdateSubmit}>
                 <div className="section">
                   <label htmlFor="probable-causes">Incident Most Probable Causes:</label>
@@ -308,6 +349,7 @@ async componentDidMount() {
                     required
                   />
                 </div>
+
                 <div className="section">
                   <label htmlFor="corrective-action">Corrective / Preventive Action:</label>
                   <textarea
@@ -317,6 +359,7 @@ async componentDidMount() {
                     required
                   />
                 </div>
+
                 <div className="section">
                   <label htmlFor="due-date">Due Date:</label>
                   <input type="date" id="due-date" required />
@@ -326,10 +369,10 @@ async componentDidMount() {
                   Submit Update
                 </button>
               </form>
-            </div>
+            )}
           </div>
-
-          {/* Quality Response Modal */}
+        </div>
+         {/* Quality Response Modal */}
           <div
             className={`modal-bg ${showQualityModal ? "active" : ""}`}
             onClick={this.closeQualityModal}
@@ -353,32 +396,18 @@ async componentDidMount() {
                     <tr>
                       <th>Follow-Up Date</th>
                         <th>Status</th>
-                        <th>Type</th>
-                        <th>Risk Scoring</th>
-                        <th>Categorization</th>
                         <th>Effectiveness Result</th>
                         <th>Comment</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                        <td>2025-08-20</td>
-                        <td><span className="status-pending">Pending</span></td>
+                        <td>-</td>
+                        <td><span className="status-pending">-</span></td>
                         <td>—</td>
-                        <td>—</td>
-                        <td>—</td>
-                        <td>—</td>
-                        <td>Awaiting verification of corrective action.</td>
+                        <td>-</td>
                     </tr>
-                    <tr>
-                        <td>2025-08-25</td>
-                        <td><span className="status-completed">Completed</span></td>
-                         <td>Near Miss Events</td>
-                         <td>—</td>
-                         <td>—</td>
-                        <td><span className="status-effective">Effective</span></td>
-                        <td>Issue resolved and verified.</td>
-                      </tr>
+
                   </tbody>
                 </table>
               </div>
@@ -388,7 +417,6 @@ async componentDidMount() {
                 <textarea
                   id="quality-reply"
                   rows="3"
-                  placeholder="Write your reply or clarification here..."
                 ></textarea>
                 <br />
                 <button
