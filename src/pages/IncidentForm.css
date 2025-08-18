@@ -60,6 +60,17 @@ header img {
   transition: border-color 0.3s ease;
   align-items: center;
 }
+.incident-container input[type="file"] {
+   width: 95%;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 15px;
+  background-color: #fdfdfd;
+  color: #333;
+  transition: border-color 0.3s ease;
+  align-items: center;
+}
 
 .incident-container input:focus,
 .incident-container textarea:focus {
@@ -73,7 +84,6 @@ header img {
   min-height: 80px;
 }
 
-/* Checkbox and label alignment */
 .incident-container .checkbox-group {
   display: flex;
   align-items: center;
@@ -91,7 +101,6 @@ header img {
   cursor: pointer;
 }
 
-/* Sub-sections for Patient, Employee, Visitor details */
 .incident-container .sub-section {
   background-color: #f5f7f9;
   padding: 15px 20px;
@@ -99,7 +108,6 @@ header img {
   margin-bottom: 20px;
 }
 
-/* Submit button styling */
 .incident-container button {
   width: 100%;
   background-color: #007bff;
@@ -116,7 +124,6 @@ header img {
   background-color: #0056b3;
 }
 
-/* Responsive */
 @media (max-width: 600px) {
   .incident-container {
     padding: 20px;

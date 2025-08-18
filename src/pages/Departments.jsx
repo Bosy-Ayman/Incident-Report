@@ -62,14 +62,6 @@ export default class Departments extends Component {
     this.setState({ showUpdateModal: false, selectedIncident: null });
   };
 
-  openQualityModal = (incident) => {
-    this.setState({ showQualityModal: true, selectedIncident: incident });
-  };
-
-  closeQualityModal = () => {
-    this.setState({ showQualityModal: false, selectedIncident: null });
-  };
-
   handleUpdateSubmit = async (e) => {
     e.preventDefault();
     const { selectedIncident } = this.state;
@@ -83,7 +75,6 @@ export default class Departments extends Component {
     const correctiveAction = e.target["corrective-action"].value;
     const dueDate = e.target["due-date"].value;
 
-    // Extract departmentId from URL
     const urlParts = window.location.pathname.split("/");
     const departmentId = parseInt(urlParts[urlParts.length - 1]);
 
@@ -93,12 +84,13 @@ export default class Departments extends Component {
     }
 
     const body = {
-      ResponseID: selectedIncident.ResponseID,
-      IncidentID: selectedIncident.number,    
-      DepartmentID: departmentId,            
-      Reason: probableCauses,
-      CorrectiveAction: correctiveAction,
-      ResponseDate: dueDate,
+   // Use IncidentID from your incident object
+    IncidentID: selectedIncident.IncidentID,    
+    DepartmentID: departmentId,            
+    Reason: probableCauses,
+    CorrectiveAction: correctiveAction,
+    ResponseDate: dueDate,
+  ...(selectedIncident.ResponseID && { ResponseID: selectedIncident.ResponseID }),
     };
 
     try {
@@ -121,7 +113,6 @@ export default class Departments extends Component {
       alert("Network error: " + err.message);
     }
   };
-
 
 
   handleFilterChange = (e) => {
@@ -172,7 +163,6 @@ export default class Departments extends Component {
       filters,
       showDetailsModal,
       showUpdateModal,
-      showQualityModal,
       selectedIncident,
     } = this.state;
 
@@ -192,13 +182,6 @@ export default class Departments extends Component {
               <option value="Assigned">Assigned</option>
               <option value="PendingResponse">Pending Response</option>
               <option value="Closed">Closed</option>
-            </select>
-
-            <label htmlFor="responseFilter">Responded by Dept:</label>
-            <select id="responseFilter" value={filters.responseFilter} onChange={this.handleFilterChange}>
-              <option value="all">All</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
             </select>
 
             <label htmlFor="dateFrom">From Date:</label>
@@ -230,52 +213,33 @@ export default class Departments extends Component {
                 <th>Location</th>
                 <th>Reporter</th>
                 <th>Status</th>
-                <th>Responded by Dept</th>
                 <th>Actions</th>
               </tr>
             </thead>
 
-            <tbody>
-              {filteredIncidents.map((incident) => (
-                <tr
-                  key={incident.number}
-                  data-status={incident.status}
-                  data-responded={incident.responded}
-                  data-date={incident.date}
-                >
-                  <td>{incident.number}</td>
-                  <td>{incident.date}</td>
-                  <td>{incident.location}</td>
-                  <td>{incident.reporter}</td>
-                  <td className={`status-${incident.status.replace(/\s/g, "")}`}>
-                    {incident.status}
-                  </td>
-                  <td>{incident.responded}</td>
-                  <td>
-                    <button
-                      className="btn-details"
-                      onClick={() => this.openDetailsModal(incident)}
-                    >
-                      Details
-                    </button>
-                    <button
-                      className="btn-update"
-                      onClick={() => this.openUpdateModal(incident)}
-                      style={{ marginLeft: "10px" }}
-                    >
-                      Update
-                    </button>
-                    <button
-                      className="btn-quality"
-                      onClick={() => this.openQualityModal(incident)}
-                      style={{ marginLeft: "10px" }}
-                    >
-                      Quality Response
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+        <tbody>
+      {filteredIncidents.map((incident) => (
+        <tr
+          key={incident.IncidentID}
+          data-status={incident.status}
+          data-responded={incident.responded}
+          data-date={new Date(incident.IncidentDate).toLocaleDateString()}
+        >
+          <td>{incident.IncidentID}</td>
+          <td>{incident.IncidentDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
+          <td>{incident.Location || '-'}</td>
+          <td>{incident.ReporterName || '-'}</td>
+          <td className={`status-${incident.status.replace(/\s/g, "")}`}>
+            {incident.status || '-'}
+          </td>
+          <td>
+            <button className="btn-details" onClick={() => this.openDetailsModal(incident)}>Details</button>
+            <button className="btn-update" onClick={() => this.openUpdateModal(incident)} style={{ marginLeft: "10px" }}>Update</button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+
           </table>
 
           {/* Details Modal */}
@@ -296,25 +260,55 @@ export default class Departments extends Component {
               </button>
               <h2 id="details-title">Incident Details</h2>
               {selectedIncident && (
-                <>
+                  <>
+                  <p><strong>Incident No:</strong> {selectedIncident.IncidentID || "—"}</p>
+                  
                   <p>
-                    <strong>Incident No:</strong> {selectedIncident.number}
+                    <strong>Incident Date:</strong>{" "}
+                    {selectedIncident.IncidentDate
+                      ? new Date(selectedIncident.IncidentDate).toLocaleDateString()
+                      : "—"}
                   </p>
                   <p>
-                    <strong>Date:</strong> {selectedIncident.date}
+                    <strong>Incident Time:</strong>{" "}
+                    {selectedIncident.IncidentTime || "—"}
                   </p>
+
+                  <p><strong>Location:</strong> {selectedIncident.Location || "—"}</p>
+
+                  <p><strong>Affected Individuals:</strong> {selectedIncident.AffectedList || "—"}</p>
+
+                  <p><strong>Incident Description:</strong> {selectedIncident.Description || "—"}</p>
+
+                  <p><strong>Immediate Action Taken:</strong> {selectedIncident.ImmediateAction || "—"}</p>
+
+                  <p><strong>Reporter's Name:</strong> {selectedIncident.ReporterName || "—"}</p>
+                  <p><strong>Reporter Title:</strong> {selectedIncident.ReporterTitle || "—"}</p>
+
+                  {selectedIncident.Attachments && (
+                    <p>
+                      <strong>Attachments:</strong>{" "}
+                      <a
+                        href={`/uploads/${selectedIncident.Attachments}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {selectedIncident.Attachments}
+                      </a>
+                    </p>
+                  )}
+
+                  <p><strong>Status:</strong> {selectedIncident.status || "—"}</p>
                   <p>
-                    <strong>Location:</strong> {selectedIncident.location}
+                    <strong>Responded by Dept:</strong>{" "}
+                    {selectedIncident.responded === "Yes" ? "Yes" : "No"}
                   </p>
+
                   <p>
-                    <strong>Reporter:</strong> {selectedIncident.reporter}
+                    <strong>Assigned Department:</strong>{" "}
+                    {selectedIncident.DepartmentID || "—"}
                   </p>
-                  <p>
-                    <strong>Status:</strong> {selectedIncident.status}
-                  </p>
-                  <p>
-                    <strong>Responded:</strong> {selectedIncident.responded}
-                  </p>
+    
                 </>
               )}
             </div>
@@ -336,7 +330,27 @@ export default class Departments extends Component {
             >
               ×
             </button>
+            
+              {selectedIncident && (
+                <>
+                  {/*Incident Responses Table*/}
+                  <div className="section">
+                    <h2>Response From Department</h2>
+                    <table className="modal-table">
+                      <thead>
+                        <tr>
+                          <th>Due Date</th>
+                          <th>Incident Most Probable Causes</th>
+                          <th>Corrective / Preventive Action</th>
+                          <th>Department</th>
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>                
+                </>
+              )}
             <h2 id="update-title">Update Incident Response</h2>
+
 
             {selectedIncident && (
               <form onSubmit={this.handleUpdateSubmit}>
@@ -372,62 +386,7 @@ export default class Departments extends Component {
             )}
           </div>
         </div>
-         {/* Quality Response Modal */}
-          <div
-            className={`modal-bg ${showQualityModal ? "active" : ""}`}
-            onClick={this.closeQualityModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="quality-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeQualityModal}
-                aria-label="Close quality modal"
-              >
-                ×
-              </button>
-              
-              <h2 id="quality-title"> Follow-Up</h2>
-              <div className="section">
-                <table className="modal-table">
-                  <thead>
-                    <tr>
-                      <th>Follow-Up Date</th>
-                        <th>Status</th>
-                        <th>Effectiveness Result</th>
-                        <th>Comment</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                        <td>-</td>
-                        <td><span className="status-pending">-</span></td>
-                        <td>—</td>
-                        <td>-</td>
-                    </tr>
 
-                  </tbody>
-                </table>
-              </div>
-              
-              <div className="section">
-                <label htmlFor="quality-reply">Reply to Quality Department:</label>
-                <textarea
-                  id="quality-reply"
-                  rows="3"
-                ></textarea>
-                <br />
-                <button
-                  className="btn-quality"
-                  onClick={() => alert("Reply sent!")}
-                >
-                  Send Reply
-                </button>
-              </div>
-            </div>
-          </div>
         </main>
       </div>
     );

@@ -8,6 +8,7 @@ export default class IncidentForm extends Component {
       patientChecked: false,
       employeeChecked: false,
       visitorChecked: false,
+      attachments: [],
     };
   }
 
@@ -19,11 +20,8 @@ export default class IncidentForm extends Component {
   handleSubmit = (event) => {
     event.preventDefault(); 
 
-   
     const form = event.target;
     const formData = new FormData(form);
-
-   
     const data = {};
     formData.forEach((value, key) => {
       data[key] = value;
@@ -32,7 +30,7 @@ export default class IncidentForm extends Component {
     data.patientChecked = this.state.patientChecked;
     data.employeeChecked = this.state.employeeChecked;
     data.visitorChecked = this.state.visitorChecked;
-    
+   
     // Post: so that it can recieve the form info into the database
     fetch("/incident-form", {
       method: "POST",
@@ -57,6 +55,15 @@ export default class IncidentForm extends Component {
       });
   };
 
+  handleFileChange = (event)=>{
+    this.setState({attachments:Array.from(event.target.files)});
+  }
+
+  handleRemoveFile =(index)=>{
+    const updatedFiles =[...this.state.attachments];
+    updatedFiles.splice(index,1);
+    this.setState({attachments:updatedFiles});
+  }
   render() {
     const { patientChecked, employeeChecked, visitorChecked } = this.state;
 
@@ -167,8 +174,30 @@ export default class IncidentForm extends Component {
 
             <label htmlFor="report-time">Date and Time / التاريخ و الوقت:</label>
             <input type="datetime-local" id="report-time" name="report_time" required />
+            
 
-            <button type="submit">Submit</button>
+            <label htmlFor="attachment"> Attach a copy of related documents (if any) <br/> (ان وجدت) ارفق نسخه من المتعلقات</label>
+            <input 
+              type="file" 
+              id="attachment" 
+              name="attachments" 
+              multiple 
+              onChange={this.handleFileChange}
+            />
+            <ul>
+              {this.state.attachments.map((file,index)=>(
+                <li key ={index}>
+                  {file.name}
+                  <button
+                  type= 'button'
+                  onClick={()=>this.handleRemoveFile(index)}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="remove">Submit</button>
           </form>
         </div>
       </div>

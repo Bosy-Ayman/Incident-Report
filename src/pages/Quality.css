@@ -22,6 +22,11 @@
   flex-grow: 1;
   font-size: 1.5rem;
 }
+.quality-dashboard header h2 {
+  color: #1a4f85;
+  flex-grow: 1;
+  font-size: 1.5rem;
+}
 
 .quality-dashboard main {
   padding: 20px;
@@ -103,7 +108,7 @@
   background: #e2e8f0;
   font-weight: 600;
 }
-
+/*----------------------------------------Status---------------------------------*/
 .quality-dashboard .status-New {
   color: #d69e2e;
   font-weight: bold;
@@ -123,6 +128,16 @@
   color: #38a169;
   font-weight: bold;
 }
+/*-----------------------------Responded by department---------------------------------*/
+.quality-dashboard .responded-Yes {
+  color: #38a169;
+  font-weight: bold;
+}
+.quality-dashboard .responded-No {
+  color: #e00202;
+  font-weight: bold;
+}
+
 
 .quality-dashboard .modal-bg {
   display: none;

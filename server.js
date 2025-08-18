@@ -45,7 +45,6 @@ app.post("/incident-form", async (req, res) => {
       visitor_name
     } = req.body;
 
-    // Parse datetime-local string into separate date/time
     const reportDatetime = new Date(report_time);
     const reportDate = reportDatetime.toISOString().split("T")[0];
     const reportTimeOnly = reportDatetime.toTimeString().split(" ")[0];
@@ -136,34 +135,38 @@ app.get("/quality", async (req, res) => {
 
     const query = `
       SELECT 
-        i.IncidentID,
-        i.IncidentDate,
-        i.Location,
-        r.Name AS ReporterName,
-        r.Title AS ReporterTitle,
-        r.ReportDate,
-        r.ReportTime,
-        i.Description,
-        i.status,
-        i.responded,
-        i.ImmediateAction,
-        STRING_AGG(ai.Type + ': ' + COALESCE(ai.Name, ''), ', ') AS AffectedList
+          i.IncidentID,
+          i.IncidentDate,
+          i.Location,
+          r.Name AS ReporterName,
+          r.Title AS ReporterTitle,
+          r.ReportDate,
+          r.ReportTime,
+          i.Description,
+          i.status,
+          i.responded,
+          i.Attachments,
+          i.ImmediateAction,
+          STRING_AGG(ai.Name, ', ') AS AffectedIndividualsNames,  
+          STRING_AGG(ai.Type + ': ' + ai.Name, ', ') AS AffectedList  
       FROM Incidents i
       JOIN Reporters r ON i.ReporterID = r.ReporterID
       LEFT JOIN AffectedIndividuals ai ON i.IncidentID = ai.IncidentID
       GROUP BY 
-        i.IncidentID, 
-        i.IncidentDate, 
-        i.Location, 
-        r.Name, 
-        r.Title, 
-        r.ReportDate, 
-        r.ReportTime,
-        i.Description, 
-        i.ImmediateAction,
-        i.status,
-        i.responded
-      ORDER BY i.IncidentID DESC
+          i.IncidentID, 
+          i.IncidentDate, 
+          i.Location, 
+          r.Name, 
+          r.Title, 
+          r.ReportDate, 
+          r.ReportTime,
+          i.Description, 
+          i.ImmediateAction,
+          i.status,
+          i.responded,
+          i.Attachments
+      ORDER BY i.IncidentID DESC;
+
     `;
 
 
@@ -241,14 +244,43 @@ app.get("/departments/:departmentId", async (req, res) => {
     const result = await pool.request()
       .input("departmentId", sql.Int, departmentId)
       .query(`
-        SELECT i.IncidentID AS number, i.IncidentDate AS date, i.Location AS location,
-                r.Name AS reporter, i.Status AS status, i.Responded AS responded,
-                d.DepartmentName
+          SELECT 
+              i.IncidentID,
+              i.IncidentDate,
+              i.IncidentTime,
+              i.Location,
+              r.Name AS ReporterName,
+              r.Title AS ReporterTitle,
+              r.ReportDate,
+              r.ReportTime,
+              i.Description,
+              i.ImmediateAction,
+              i.Attachments,
+              i.status,
+              i.responded,
+              d.DepartmentName,
+              STRING_AGG(ai.Type + ': ' + ai.Name, ', ') AS AffectedList
           FROM Incidents i
-          LEFT JOIN Reporters r ON i.ReporterID = r.ReporterID
+          JOIN Reporters r ON i.ReporterID = r.ReporterID
           LEFT JOIN Departments d ON i.DepartmentID = d.DepartmentID
+          LEFT JOIN AffectedIndividuals ai ON i.IncidentID = ai.IncidentID
           WHERE i.DepartmentID = @departmentId
-          ORDER BY i.IncidentDate DESC
+          GROUP BY 
+              i.IncidentID,
+              i.IncidentDate,
+              i.IncidentTime,
+              i.Location,
+              r.Name,
+              r.Title,
+              r.ReportDate,
+              r.ReportTime,
+              i.Description,
+              i.ImmediateAction,
+              i.Attachments,
+              i.status,
+              i.responded,
+              d.DepartmentName
+          ORDER BY i.IncidentID DESC
       `);
 
     res.json({ status: "success", data: result.recordset });
@@ -437,7 +469,6 @@ app.post("/responses", async (req, res) => {
     res.status(500).json({ error: "Failed to save response" });
   }
 });
-
 //------------------------------------------------------------------------
 app.get("/quality/responses", async (req, res) => {
   let pool;
@@ -461,6 +492,34 @@ app.get("/quality/responses", async (req, res) => {
     if (pool) await pool.close();
   }
 });
+//---------------------------------Recieving Quality Feedback After Implementation-----------------------------------
+
+app.post("/quality/feedback", async (req, res) => {
+  const { incidentId, categorization, } = req.body;
+  
+  try {
+    pool = await sql.connect(dbConfig);
+    await pool.request()
+      .input("IncidentID", sql.Int, incidentId)
+      .input("DepartmentID", sql.Int, departmentId)
+      .input("Reason", sql.Text, reason)
+      .input("CorrectiveAction", sql.Text, correctiveAction)
+      .input("ResponseDate", sql.Date, new Date())
+      .input("ResponseTime", sql.Time, new Date())
+      .input("Version", sql.Int, 1)
+      .query(`
+        INSERT INTO DepartmentResponse 
+          (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, ResponseTime, Version)
+        VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @ResponseTime, @Version)
+      `);
+
+    res.status(200).json({ message: "Response saved successfully" });
+  } catch (err) {
+    console.error("Error inserting response:", err);
+    res.status(500).json({ error: "Failed to save response" });
+  }
+});
+
 
 
 //-----------------------------------------------------------------------------------
