@@ -84,13 +84,12 @@ export default class Departments extends Component {
     }
 
     const body = {
-   // Use IncidentID from your incident object
     IncidentID: selectedIncident.IncidentID,    
     DepartmentID: departmentId,            
     Reason: probableCauses,
     CorrectiveAction: correctiveAction,
     ResponseDate: dueDate,
-  ...(selectedIncident.ResponseID && { ResponseID: selectedIncident.ResponseID }),
+    ...(selectedIncident.ResponseID && { ResponseID: selectedIncident.ResponseID }),
     };
 
     try {
@@ -218,27 +217,27 @@ export default class Departments extends Component {
             </thead>
 
         <tbody>
-      {filteredIncidents.map((incident) => (
-        <tr
-          key={incident.IncidentID}
-          data-status={incident.status}
-          data-responded={incident.responded}
-          data-date={new Date(incident.IncidentDate).toLocaleDateString()}
-        >
-          <td>{incident.IncidentID}</td>
-          <td>{incident.IncidentDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
-          <td>{incident.Location || '-'}</td>
-          <td>{incident.ReporterName || '-'}</td>
-          <td className={`status-${incident.status.replace(/\s/g, "")}`}>
-            {incident.status || '-'}
-          </td>
-          <td>
-            <button className="btn-details" onClick={() => this.openDetailsModal(incident)}>Details</button>
-            <button className="btn-update" onClick={() => this.openUpdateModal(incident)} style={{ marginLeft: "10px" }}>Update</button>
-          </td>
-        </tr>
-      ))}
-    </tbody>
+          {filteredIncidents.map((incident) => (
+            <tr
+              key={incident.IncidentID}
+              data-status={incident.status}
+              data-responded={incident.responded}
+              data-date={new Date(incident.IncidentDate).toLocaleDateString()}
+            >
+              <td>{incident.IncidentID}</td>
+              <td>{incident.IncidentDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
+              <td>{incident.Location || '-'}</td>
+              <td>{incident.ReporterName || '-'}</td>
+              <td className={`status-${incident.status.replace(/\s/g, "")}`}>
+                {incident.status || '-'}
+              </td>
+              <td>
+                <button className="btn-details" onClick={() => this.openDetailsModal(incident)}>Details</button>
+                <button className="btn-update" onClick={() => this.openUpdateModal(incident)} style={{ marginLeft: "10px" }}>Update</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
 
           </table>
 
