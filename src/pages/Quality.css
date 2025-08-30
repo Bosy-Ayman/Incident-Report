@@ -1,34 +1,7 @@
-.quality-dashboard body {
+.quality-dashboard {
   font-family: Arial, sans-serif;
   background: #f0f3f7;
   margin: 0;
-  padding: 0;
-}
-
-/*------ Header---------*/
-
-.quality-dashboard header {
-  background-color: #2b6cb0;
-  color: white;
-  padding: 15px 25px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-.quality-dashboard header img {
-  height: 50px;
-}
-.quality-dashboard header h1 {
-  flex-grow: 1;
-  font-size: 1.5rem;
-}
-.quality-dashboard header h2 {
-  color: #1a4f85;
-  flex-grow: 1;
-  font-size: 1.5rem;
-}
-
-.quality-dashboard main {
   padding: 20px;
   max-width: 1210px;
   margin: auto;
@@ -39,7 +12,7 @@
   margin-right: 8px;
 }
 
-/* Filters layout */
+/*----------------- Filters layout----------------- */
 .quality-dashboard #filters {
   display: flex;
   flex-wrap: wrap;
@@ -71,7 +44,7 @@
 }
 
 .quality-dashboard button {
-  background-color: #2b6cb0;
+  background-color:  #388fb5;
   color: white;
   border: none;
   padding: 7px 15px;
@@ -82,7 +55,7 @@
   margin-top: 5px;
 }
 .quality-dashboard button:hover {
-  background-color: #1a4f85;
+  background-color: #2f7fa1;
 }
 
 .quality-dashboard table {
@@ -119,31 +92,24 @@
   font-weight: bold;
 }
 
-.quality-dashboard .status-PendingResponse {
-  color: #dd6b20;
+.quality-dashboard .status-Pending {
+  color: #dd6b20 !important;
   font-weight: bold;
 }
 
-.quality-dashboard .status-Closed {
+
+.quality-dashboard .status-Done {
   color: #38a169;
   font-weight: bold;
 }
 /*-----------------------------Responded by department---------------------------------*/
-.quality-dashboard .responded-Yes {
-  color: #38a169;
-  font-weight: bold;
-}
-.quality-dashboard .responded-No {
-  color: #e00202;
-  font-weight: bold;
-}
 
 
 .quality-dashboard .modal-bg {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.3);
   justify-content: center;
   align-items: flex-start;
   overflow-y: auto;
@@ -208,3 +174,111 @@
   resize: vertical;          
   min-height: 80px;
 }
+/*--------------------- Responded by department flag -------------------------*/
+.status-Yes {
+  color: #38a169;
+  font-weight: bold;
+}
+
+.status-No {
+  color: #e6504e;
+  font-weight: bold;
+}
+/*-------------------------------------------------------------------------*/
+
+
+.quality-dashboard .section h3 {
+  margin: 0 0 10px;
+  color: #1a4f85;
+  font-size: 1.05rem;
+}
+.quality-dashboard .section:not(:last-child) {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 16px;
+}
+
+/* small grid for neat two-column layout */
+.quality-dashboard .grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 24px;
+}
+.quality-dashboard .grid-2 .span-2 {
+  grid-column: 1 / -1;
+}
+@media (max-width: 700px) {
+  .quality-dashboard .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* avoid reusing #filters inside the modal */
+.quality-dashboard .assign-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.quality-dashboard .assign-controls select {
+  padding: 5px 8px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+}
+.quality-dashboard .assign-controls select:focus {
+  outline: none;
+  border-color: #2b6cb0;
+  box-shadow: 0 0 5px rgba(43, 108, 176, 0.5);
+}
+
+.quality-dashboard .close-btn {
+  background-color: #c30808 !important;
+  color: white;
+  border: none;
+  padding: 7px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  margin-top: 5px;
+  margin-left: "10px";
+}
+.quality-dashboard .close-button {
+  background-color: #469e28 !important;
+  color: white;
+  border: none;
+  padding: 7px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  margin-top: 5px;
+  margin-left: "10px";
+}
+.quality-dashboard .details-btn {
+  background-color: #4587a3 ;
+  color: white;
+  border: none;
+  padding: 7px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  margin-top: 5px;
+  margin-left: "10px";
+}
+.quality-dashboard .update-btn {
+  background-color: #c38b1a !important;
+  color: white;
+  border: none;
+  padding: 7px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  margin-top: 5px;
+  margin-left: "10px";
+}
+
+
+

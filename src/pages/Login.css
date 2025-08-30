@@ -1,21 +1,38 @@
-body {
-    font-family: Arial, sans-serif;
-    background: #f0f3f7;
-    margin: 0;
-    padding: 0;
+/* Full-width top header */
+.top-header {
+    width: 100%;
+    background:  #3b98c0;
+    color: white;
+    padding: 15px 40px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-sizing: border-box;
 }
 
+.top-header img {
+    height: 50px; /* bigger logo */
+}
+
+.top-header h1 {
+    flex-grow: 1;
+  font-size: 1.5rem;
+}
+
+/* Centered login box */
 .login-container {
-    max-width: 400px;
-    margin: 50px auto;
-    padding: 35px 40px;
+    width: 400px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    margin: 50px auto;
+    overflow: hidden;
 }
 
+
+/* Header */
 .login-container header {
-    background-color: #2b6cb0;
+    background-color: #048bc3;
     color: white;
     padding: 15px 25px;
     display: flex;
@@ -31,37 +48,64 @@ body {
     flex-grow: 1;
     font-size: 1.5rem;
 }
-.login-container h2{
-    margin-left: 160px;
 
+/* Main content */
+.login-container main {
+    padding: 30px 25px;
 }
+
+.login-container h2 {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #333;
+    font-size: 1.4rem;
+}
+
+/* Labels */
 .login-container label {
     display: block;
     font-weight: 600;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
+    color: #333;
 }
 
+/* Inputs */
 .login-container input[type="text"],
 .login-container input[type="password"] {
-    width: 90%;
-    padding: 10px 14px;
+    width: 100%;
+    padding: 10px 12px;
     border: 1px solid #ccc;
     border-radius: 6px;
     margin-bottom: 20px;
+    box-sizing: border-box;
 }
 
+/* Button */
 .login-container button {
-    width: 97%;
-    background-color: #007bff;
+    width: 100%;
+    background-color: #3589ad;
     color: white;
     font-size: 16px;
-    padding: 14px;
+    padding: 12px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    
+    transition: background 0.3s;
 }
 
 .login-container button:hover {
-    background-color: #0056b3;
+    background-color:  #2b7392;
+}
+
+/* Messages */
+.login-container .error {
+    color: red;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.login-container .success {
+    color: green;
+    text-align: center;
+    margin-top: 10px;
 }

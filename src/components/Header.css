@@ -1,0 +1,48 @@
+/*------------------------ HEADER -----------------------------*/
+.header-component header {
+  background-color: #3b98c0;
+  color: white;
+  padding: 15px 25px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
+}
+
+.header-component header img {
+  height: 50px;
+}
+
+.header-component header h1 {
+  flex-grow: 1;
+  font-size: 1.5rem;
+}
+
+/*------------------------ NAVBAR -----------------------------*/
+.header-component .Navbar ul {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 20px;
+  list-style: none;
+}
+
+.header-component .Navbar ul li {
+  display: block;
+}
+
+.header-component .Navbar ul li a {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: white;
+  text-decoration: none;
+  padding: 8px 12px;
+  transition: 0.2s;
+}
+
+.header-component .Navbar ul li a:hover {
+  background-color: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+
+

@@ -1,122 +1,398 @@
 import React, { Component } from "react";
+import { useLocation } from "react-router-dom";
 import "./Quality.css";
 
+function useQuery() {
+  return new URLSearchParams(useLocation().search);
+}
 export default class Quality extends Component {
+  
   constructor(props) {
     super(props);
     this.state = {
+      
       incidents: [],
       departments: [],
       incidentResponses: [],
+      filteredIncidents: [],
       showDetailsModal: false,
       showUpdateModal: false,
       selectedIncident: null,
       selectedDepartmentId: "",
       categorization: "",
+      qualitySpecialistName: "",
+      reviewedFlag:'',
       type: [],
       riskScoring: "",
       effectiveness: "",
-      comment: ""
+      feedbackFlag: "",
+      showCloseModal: false,
+      filters:{
+        statusFilter: "all",
+        responseFilter: "all",
+        dateFrom: "",
+        dateTo: "",
+    
+      }
     };
 
   }
 
-  componentDidMount() {
-    fetch("/quality")
-      .then(res => res.json())
-      .then(data => {
-        const incidentsArray = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
-        this.setState({ incidents: incidentsArray });
-      })
-      .catch(err => console.error(err));
+  async componentDidMount() {
+    try {
+      const token = localStorage.getItem("token");
 
-    fetch("/departments")
-      .then(res => res.json())
-      .then(data => this.setState({ departments: Array.isArray(data) ? data : [] }))
-      .catch(err => console.error(err));
+      // Fetch incidents and departments in parallel
+      const [incidentsRes, departmentsRes] = await Promise.all([
+        fetch("/quality", { 
+          headers: { "Authorization": `Bearer ${token}` }, 
+          credentials: "include" 
+        }),
+        fetch("/departments", { 
+          headers: { "Authorization": `Bearer ${token}` }, 
+          credentials: "include" 
+        }),fetch("/quality-feedback", { 
+          headers: { "Authorization": `Bearer ${token}` }, 
+          credentials: "include" 
+        })
+      ]);
 
-    fetch("/quality/responses")
-      .then(res => res.json())
-      .then(data => {
-        console.log("Responses:", data); 
-        this.setState({ 
-          incidentResponses: Array.isArray(data.data) ? data.data : []  
-        });
-      })
-      .catch(err => console.error(err));
+      // Parse JSON responses
+      const incidentsData = await incidentsRes.json();
+      const departmentsData = await departmentsRes.json();
 
+      // Normalize arrays
+      const incidentsArray = Array.isArray(incidentsData.data) ? incidentsData.data : [];
+      const departmentsArray = Array.isArray(departmentsData) ? departmentsData : [];
+
+      // Map incidents and include responses with corrected field mapping
+      const incidentsWithFeedback = incidentsArray.map(inc => ({
+        ...inc,
+        // Check if quality feedback exists by looking for any quality-related fields
+        feedbackFlag: (inc.FeedbackFlag === 1 || 
+                      inc.FeedbackCategorization || 
+                      inc.FeedbackType || 
+                      inc.FeedbackRiskScoring || 
+                      inc.FeedbackEffectiveness) ? "true" : "false",
+        // ADD THIS LINE for reviewed flag
+        reviewedFlag: inc.ReviewedFlag === 1 ? "true" : "false",
+        categorization: inc.FeedbackCategorization || "",
+        type: inc.FeedbackType ? inc.FeedbackType.split(", ") : [],
+        riskScoring: inc.FeedbackRiskScoring || "",
+        effectiveness: inc.FeedbackEffectiveness || "",
+        qualitySpecialistName: inc.QualitySpecialistName || "",
+        Response: inc.Responses ? JSON.parse(inc.Responses) : [] 
+      }));
+
+      // Update state
+      this.setState({
+        incidents: incidentsWithFeedback,
+        filteredIncidents: incidentsWithFeedback,
+        departments: departmentsArray
+      });
+
+    } catch (err) {
+      console.error("Error fetching data in componentDidMount:", err);
     }
+  }
+
+handleReviewedByManager = () => {
+  const { selectedIncident } = this.state;
+  if (!selectedIncident) {
+    console.log("No selected incident");
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+  const requestBody = { 
+    IncidentID: selectedIncident.IncidentID,
+    reviewedBy: localStorage.getItem("userName") || "Quality Manager"
+  };
   
+  console.log("Sending review request:", requestBody);
+  
+  fetch('/quality/reviewed', {
+    method: 'PUT',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    credentials: 'include',
+    body: JSON.stringify(requestBody)
+  })
+  .then(res => {
+    console.log("Response status:", res.status);
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then((data) => {
+    console.log("Response data:", data);
+    if (data.status === "success") {
+      alert("Incident marked as reviewed successfully!");
+      
+      // Update local state to show "Done" button
+      this.setState(prevState => {
+        const updatedIncidents = prevState.incidents.map(inc =>
+          inc.IncidentID === selectedIncident.IncidentID
+          ? { ...inc, reviewedFlag: "true" }
+          : inc
+        );
+        
+        return {
+          incidents: updatedIncidents,
+          filteredIncidents: updatedIncidents
+        };
+      });
+    } else {
+      alert("Failed to mark as reviewed: " + (data.message || "Unknown error"));
+    }
+  })
+  .catch(err => {
+    console.error("Review request failed:", err);
+    alert("Failed to mark as reviewed: " + err.message);
+  });
+};
    /*Details Modal*/
   openDetailsModal = (incident) => {
-    const responses = this.state.incidentResponses.filter(
-      r => r.IncidentID == incident.IncidentID
-    );
+    const responses = incident.Response || [];
+  
+    const qualityData = {
+      categorization: incident.FeedbackCategorization || "",
+      type: incident.FeedbackType ? incident.FeedbackType.split(", ") : [],
+      riskScoring: incident.FeedbackRiskScoring || "",
+      effectiveness: incident.FeedbackEffectiveness || "",
+      qualitySpecialistName: incident.QualitySpecialistName || "",
+      feedbackFlag: incident.feedbackFlag || "",
+    };
+
+
     this.setState({
       showDetailsModal: true,
-      selectedIncident: { ...incident, Response: responses }
+      selectedIncident: { ...incident, Response: responses, ...qualityData }
     });
   };
 
-  closeDetailsModal = () => {
+  closeDetailsModal= ()=> {
     this.setState({ showDetailsModal: false, selectedIncident: null });
   };
 
-   /*Update Modal*/
-  openUpdateModal = (incident) => {
-    const responses = this.state.incidentResponses.filter(
-      r => r.IncidentID == incident.IncidentID
-    );
-
-  console.log("Filtered responses:", responses); 
+ 
+openUpdateModal = (incident) => {
+  // Auto-populate quality specialist name from login
+  const loggedInUserName = localStorage.getItem("userName") || "";
+  
+  const qualityData = {
+    categorization: incident.FeedbackCategorization || "",
+    type: incident.FeedbackType ? incident.FeedbackType.split(", ") : [],
+    riskScoring: incident.FeedbackRiskScoring || "",
+    effectiveness: incident.FeedbackEffectiveness || "",
+    qualitySpecialistName: incident.QualitySpecialistName,
+    feedbackFlag: incident.feedbackFlag || "",
+  };
 
   this.setState({
     showUpdateModal: true,
-    selectedIncident: { ...incident, Response: responses }
+    selectedIncident: { ...incident, ...qualityData },
+    categorization: qualityData.categorization,
+    type: qualityData.type,
+    riskScoring: qualityData.riskScoring,
+    effectiveness: qualityData.effectiveness,
+    qualitySpecialistName: qualityData.qualitySpecialistName,
+    feedbackFlag: qualityData.feedbackFlag,
   });
+};
+  /*Close Incident State*/
+  confirmCloseIncident = () => {
+    const { selectedIncident } = this.state;
+    if (!selectedIncident) return;
+
+    console.log("Closing incident:", selectedIncident); 
+    fetch('/quality/close-incident', {
+      method: 'PUT', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ IncidentID: selectedIncident.IncidentID })
+    })
+    .then(res => res.json())
+    .then((data) => {
+      if (data.status === "success") {
+        this.componentDidMount(); 
+      } else {
+        alert("Failed to close incident: " + data.message);
+      }
+    })
+    .catch(err => {
+      console.error("Error closing incident:", err);
+      alert("Failed to close incident.");
+    });
   };
 
-  closeUpdateModal = () => {
-    this.setState({ showUpdateModal: false, selectedIncident: null });
+  closeUpdateModal= ()=> {
+    this.setState({ 
+      showUpdateModal: false,
+      selectedIncident: null });
   };
 
-  handleUpdateSubmit = (e) => {
-    e.preventDefault();
-    const {
-      selectedIncident,
+  /*Filter based on the status ,date ,and whether the department responded or not*/
+  applyFilters = () => {
+    const { incidents, filters } = this.state;
+    let filtered = [];
+
+    for (let i = 0; i < incidents.length; i++) {
+      const inc = incidents[i];
+
+      // Filter by status
+      if (filters.statusFilter !== "all" && inc.status !== filters.statusFilter) {
+        continue;
+      }
+
+      // Filter by response (Yes/no)
+      if (filters.responseFilter !== "all" && inc.responded.toLowerCase() !== filters.responseFilter.toLowerCase()) {
+        continue;
+      }
+      // Filter by date range
+      if (filters.dateFrom && new Date(inc.IncidentDate) < new Date(filters.dateFrom)) {
+        continue;
+      }
+      if (filters.dateTo && new Date(inc.IncidentDate) > new Date(filters.dateTo)) {
+        continue;
+      }
+      // Passed all filters
+      filtered.push(inc);
+    }
+
+    this.setState({ filteredIncidents: filtered });
+  };
+
+  clearFilters = () => {
+    this.setState(
+      {
+        filters: { statusFilter: "all", responseFilter: "all", dateFrom: "", dateTo: "" },
+        filteredIncidents: this.state.incidents,
+      }
+    );
+  };
+  handleFilterChange=(e)=>{
+    const {id,value} = e.target;
+    this.setState((prev)=> ({
+      filters:{
+        ...prev.filters,
+        [id]:value,
+      },
+    }));
+  };
+
+handleUpdateSubmit = (e) => {
+  e.preventDefault();
+  const { selectedIncident, categorization, type, riskScoring, effectiveness,qualitySpecialistName } = this.state;
+
+  if (!selectedIncident?.IncidentID) {
+    alert("IncidentID is missing!");
+    return;
+  }
+
+  // Validate required fields
+  if (!categorization.trim()) {
+    alert("Please provide a categorization.");
+    return;
+  }
+
+  if (!type || type.length === 0) {
+    alert("Please select at least one type.");
+    return;
+  }
+
+  if (!riskScoring) {
+    alert("Please select a risk scoring.");
+    return;
+  }
+
+  if (!effectiveness) {
+    alert("Please select effectiveness review.");
+    return;
+  }
+  const token = localStorage.getItem("token");
+
+  // Submit quality feedback
+  fetch("/quality-feedback", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` // Add authorization header
+    },
+    credentials: "include", // Add credentials
+    body: JSON.stringify({
+      incidentId: selectedIncident.IncidentID,
+      type: type.join(", "),
       categorization,
-      type,
       riskScoring,
       effectiveness,
-      comment
-    } = this.state;
-
-    fetch(`/quality`, {
-      method: "PUT", 
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        incidentId: selectedIncident.IncidentID,
-        categorization,
-        type,
-        riskScoring,
-        effectiveness,
-        comment
-      })
+      qualitySpecialistName,
     })
-      .then(res => res.json())
-      .then(data => {
-        alert(data.message || "Incident updated successfully!");
-        this.closeUpdateModal();
-      })
-      .catch(err => {
-        console.error("Error updating incident:", err);
-        alert("Failed to update incident.");
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then(data => {
+    if (data.status === "success") {
+      alert("Feedback submitted successfully!");
+      
+      // Update local state so "Done" button shows instead of "Add Feedback"
+      this.setState(prevState => {
+        const updatedIncidents = prevState.incidents.map(inc =>
+          inc.IncidentID === selectedIncident.IncidentID
+          ? {
+              ...inc,
+              feedbackFlag: "true",
+              categorization,
+              type,
+              riskScoring,
+              effectiveness,
+              qualitySpecialistName
+            } 
+          : inc
+        );
+        
+        return {
+          incidents: updatedIncidents,
+          filteredIncidents: updatedIncidents,
+          showUpdateModal: false,
+          selectedIncident: null,
+          // Reset form fields
+          categorization: "",
+          type: [],
+          riskScoring: "",
+          effectiveness: "",
+          qualitySpecialistName: ""
+        };
       });
-  };
+    } else {
+      alert("Failed to save feedback: " + (data.message || "Unknown error"));
+    }
+  })
+  .catch(err => {
+    console.error("Error submitting feedback:", err);
+    alert("Failed to save feedback: " + err.message);
+  });
+};
 
+
+   /* Update Quality Feedback */
+  handleCheckboxChange = (e) => {
+    const { value, checked } = e.target;
+    this.setState(prev => {
+      const newType = checked ? [...prev.type, value] : prev.type.filter(t => t !== value);
+      return { type: newType };
+    });
+  };
+  
   handleAssignDepartment = () => {
     const { selectedIncident, selectedDepartmentId } = this.state;
-    fetch("/responses")
+    fetch("/responses",{ credentials: "include" })
       .then(res => res.json())
       .then(data => {
         console.log("Responses fetched:", data); 
@@ -145,46 +421,53 @@ export default class Quality extends Component {
 
   render() {
     const {
-      incidents,
+      
       showDetailsModal,
       showUpdateModal,
       selectedIncident,
+      filteredIncidents,
+      filters
     } = this.state;
 
     return (
+      
       <div className="quality-dashboard">
-        <header>
-          <img src="alnas-hospital.png" alt="Hospital Logo" />
-          <h1>Quality Department Dashboard</h1>
-        </header>
-
-        <main>
           {/* Filters */}
           <div id="filters">
             <label htmlFor="statusFilter">Status:</label>
-            <select id="statusFilter">
-              <option value="all">All</option>
-              <option value="New">New</option>
-              <option value="Assigned">Assigned</option>
-              <option value="PendingResponse">Pending Response</option>
-              <option value="Closed">Closed</option>
+            <select id="statusFilter" value={filters.statusFilter} onChange={this.handleFilterChange}>
+            <option value="all">All</option>
+            <option value="New">New</option>
+            <option value="Assigned">Assigned</option>
+            <option value="Pending">Pending Response</option> 
+            <option value="Done">Closed</option>
             </select>
 
+
             <label htmlFor="responseFilter">Responded by Dept:</label>
-            <select id="responseFilter">
+            <select id="responseFilter" value={filters.responseFilter} onChange={this.handleFilterChange}>
               <option value="all">All</option>
               <option value="yes">Yes</option>
               <option value="no">No</option>
             </select>
 
             <label htmlFor="dateFrom">From Date:</label>
-            <input type="date" id="dateFrom" />
+            <input 
+            type="date"
+            id="dateFrom" 
+            value={filters.dateFrom}
+            onChange={this.handleFilterChange}
+            />
 
             <label htmlFor="dateTo">To Date:</label>
-            <input type="date" id="dateTo" />
+            <input type="date"
+             id="dateTo" 
+            value={filters.dateTo}
+            onChange={this.handleFilterChange}
+             />
 
-            <button>Filter</button>
-            <button>Clear</button>
+            <button onClick={this.applyFilters}>Filter</button>
+            <button onClick={this.clearFilters}>Clear</button>
           </div>
 
           {/* Incident Table */}
@@ -201,14 +484,14 @@ export default class Quality extends Component {
               </tr>
             </thead>
             <tbody>
-              {incidents.length === 0 ? (
+              {filteredIncidents.length === 0 ? (
                 <tr>
                   <td colSpan="7" style={{ textAlign: "center" }}>
                     No incidents found.
                   </td>
                 </tr>
               ) : (
-           incidents.map((incident) => (
+           filteredIncidents.map((incident) => (
             <tr
               key={incident.IncidentID}
               data-status={incident.status}
@@ -220,7 +503,11 @@ export default class Quality extends Component {
               <td>{incident.Location}</td>
               <td>{incident.ReporterName}</td>
               <td className={`status-${incident.status}`}>{incident.status}</td>
-              <td>{incident.responded}</td>
+              
+              <td className={incident.responded === "Yes" ? "status-Yes" : "status-No"}>
+                {incident.responded === "Yes" ? "Yes" : "No"}
+              </td>
+              
               <td>
                 <button
                   className="details-btn"
@@ -228,108 +515,200 @@ export default class Quality extends Component {
                 >
                   Details
                 </button>
-                <button
-                  className="update-btn"
-                  onClick={() => this.openUpdateModal(incident)}
-                  style={{ marginLeft: "10px" }}
-                >
-                  Update
-                </button>
+
+                {/* it Works Only when the incident is Pending */}
+                {incident.status === "Pending" && (
+                <>
+                  {incident.feedbackFlag === "true" ? (
+                    <button
+                      className="close-button"
+                      onClick={() => {
+                        this.setState({ selectedIncident: incident }, () => {
+                          this.confirmCloseIncident();
+                        });
+                      }}
+                      style={{ marginLeft: "10px" }}
+                    >
+                      Done
+                    </button>
+                    //if QualityID ==1033 then show Reviewed->in case it clicked on reviewed after that u can show Done
+                    //       <button
+                    //   className="reviewed-button"
+                    //   onClick={() => {
+                    //     this.setState({ selectedIncident: incident }, () => {
+                    //       this.ReviewedByManager();
+                    //     });
+                    //   }}
+                    //   style={{ marginLeft: "10px" }}
+                    // >
+                    //   Reviewed
+                    // </button>
+                    
+                  ) : (
+                    <button
+                      className="update-btn"
+                      onClick={() => this.openUpdateModal(incident)}
+                      style={{ marginLeft: "10px" }}
+                    >
+                      Add Feedback
+                    </button>
+                  )}
+                </>
+              )}
+
+
               </td>
             </tr>
           ))
               )}
             </tbody>
           </table>
-
           {/* Details Modal */}
-          <div
-            className={`modal-bg ${showDetailsModal ? "active" : ""}`}
-            onClick={this.closeDetailsModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="details-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeDetailsModal}
-                aria-label="Close details modal"
-              >
-                ×
-              </button>
+        <div
+          className={`modal-bg ${showDetailsModal ? "active" : ""}`}
+          onClick={this.closeDetailsModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="details-title"
+        >
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="close-btn"
+              onClick={this.closeDetailsModal}
+              aria-label="Close details modal"
+            >
+              ×
+            </button>
 
-              <h2 id="details-title">Incident Details</h2>
-              {selectedIncident && (
-                <>
-                  <p><strong>Incident No:</strong> {selectedIncident.IncidentID || "—"}</p>
-                  
-                  <p>
-                    <strong>Incident Date:</strong>{" "}
-                    {selectedIncident.IncidentDate
-                      ? new Date(selectedIncident.IncidentDate).toLocaleDateString()
-                      : "—"}
-                  </p>
-                  <p>
-                    <strong>Incident Time:</strong>{" "}
-                    {selectedIncident.IncidentTime || "—"}
-                  </p>
+            <h2 id="details-title">Incident Details</h2>
 
-                  <p><strong>Location:</strong> {selectedIncident.Location || "—"}</p>
-
-                  <p><strong>Affected Individuals:</strong> {selectedIncident.AffectedList || "—"}</p>
-
-                  <p><strong>Incident Description:</strong> {selectedIncident.Description || "—"}</p>
-
-                  <p><strong>Immediate Action Taken:</strong> {selectedIncident.ImmediateAction || "—"}</p>
-
-                  <p><strong>Reporter's Name:</strong> {selectedIncident.ReporterName || "—"}</p>
-                  <p><strong>Reporter Title:</strong> {selectedIncident.ReporterTitle || "—"}</p>
-
-                  {selectedIncident.Attachments && (
+            {selectedIncident && (
+              <>
+                {/* Incident Info */}
+                <div className="section">
+                  <h3>Incident Information</h3>
+                  <div className="grid-2">
+                    <p><strong>Incident No:</strong> {selectedIncident.IncidentID || "—"}</p>
                     <p>
-                      <strong>Attachments:</strong>{" "}
-                      <a
-                        href={`/uploads/${selectedIncident.Attachments}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {selectedIncident.Attachments}
-                      </a>
+                      <strong>Incident Date:</strong>{" "}
+                      {selectedIncident.IncidentDate
+                        ? new Date(selectedIncident.IncidentDate).toLocaleDateString()
+                        : "—"}
                     </p>
-                  )}
+                    <p>
+                      <strong>Incident Time:</strong>{" "}
+                      {selectedIncident.IncidentTime
+                        ? new Date(selectedIncident.IncidentTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        : "—"}
+                    </p>
+                    <p><strong>Location:</strong> {selectedIncident.Location || "—"}</p>
+                    <p className="span-2">
+                      <strong>Affected Individuals:</strong> {selectedIncident.AffectedIndividualsNames || "—"}
+                    </p>
+                    <p className="span-2">
+                      <strong>Incident Description:</strong> {selectedIncident.Description || "—"}
+                    </p>
+                  </div>
+                </div>
 
-                  <p><strong>Status:</strong> {selectedIncident.status || "—"}</p>
+                {/* Reporter */}
+                <div className="section">
+                  <h3>Reporter</h3>
+                  <div className="grid-2">
+                    <p><strong>Name:</strong> {selectedIncident.ReporterName || "—"}</p>
+                    <p><strong>Title:</strong> {selectedIncident.ReporterTitle || "—"}</p>
+                  </div>
+                </div>
+
+                {/* Actions & Attachments */}
+             <div className="section">
+              <h3>Actions & Attachments</h3>
+              <p><strong>Immediate Action Taken:</strong> {selectedIncident.ImmediateAction || "—"}</p>
+              {selectedIncident.Attachments && (
+            <p>
+              <strong>Attachments:</strong>{" "}
+              <a
+                href={`/uploads/${selectedIncident.Attachments}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {selectedIncident.Attachments}
+              </a>
+            </p>
+
+              )}
+            </div>
+
+
+                {/* Status & Assignment */}
+                <div className="section">
+                  <h3>Status & Assignment</h3>
+                  <div className="grid-2">
                   <p>
-                    <strong>Responded by Dept:</strong>{" "}
-                    {selectedIncident.responded === "Yes" ? "Yes" : "No"}
+                    <strong>Status:</strong>{" "}
+                    <span className={`status-${selectedIncident.status || "__"}`}>
+                      {selectedIncident.status || "—"}
+                    </span>
                   </p>
 
-                  <p>
-                    <strong>Assigned Department:</strong>{" "}
-                    {selectedIncident.DepartmentID || "—"}
-                  </p>
+                    <p>
+                      <strong>Responded by Dept:</strong>{" "}
+                      <span className={selectedIncident.responded === "Yes" ? "status-Yes" : "status-No"}>
+                        {selectedIncident.responded === "Yes" ? "Yes" : "No"}
+                      </span>
+                    </p>
+                    <p className="span-2">
+                      <strong>Assigned Department:</strong> {selectedIncident.DepartmentName || "—"}
+                    </p>
+                  </div>
+                {selectedIncident?.status === "New" && (
+                  <div>
+                    <h4>Send to the Department</h4>
+                    <div className="assign-controls">
+                      <select
+                        value={this.state.selectedDepartmentId}
+                        onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
+                      >
+                        <option value="">Select Department</option>
+                        {this.state.departments.map((dept) => (
+                          <option key={dept.DepartmentID} value={dept.DepartmentID}>
+                            {dept.DepartmentName}
+                          </option>
+                        ))}
+                      </select>
+                      <button 
+                        onClick={this.handleAssignDepartment} 
+                        disabled={!this.state.selectedDepartmentId}
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-                  {/*Incident Responses Table*/}
-                  <div className="section">
-                    <h2>Response From Department</h2>
-                    <table className="modal-table">
-                      <thead>
-                        <tr>
-                          <th>Due Date</th>
-                          <th>Incident Most Probable Causes</th>
-                          <th>Corrective / Preventive Action</th>
-                          <th>Department</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedIncident && selectedIncident.Response && selectedIncident.Response.length > 0 ? (
+
+                </div>
+
+                {/* Responses */}
+                <div className="section">
+                  <h3>Response From Department</h3>
+                  <table className="modal-table">
+                    <thead>
+                      <tr>
+                        <th>Due Date</th>
+                        <th>Incident Most Probable Causes</th>
+                        <th>Corrective / Preventive Action</th>
+                        <th>Department</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedIncident?.Response?.length > 0 ? (
                         selectedIncident.Response.map((resp, index) => (
                           <tr key={index}>
-                            <td>{resp.ResponseDate? new Date(resp.ResponseDate).toLocaleDateString():'-'}</td>
+                            <td>{resp.ResponseDate ? new Date(resp.ResponseDate).toLocaleDateString() : "-"}</td>
                             <td>{resp.Reason || "—"}</td>
                             <td>{resp.CorrectiveAction || "—"}</td>
-                            <td>{resp.DepartmentName || "—"}</td> 
+                            <td>{resp.DepartmentName || "—"}</td>
                           </tr>
                         ))
                       ) : (
@@ -337,209 +716,108 @@ export default class Quality extends Component {
                           <td colSpan="4" style={{ textAlign: "center" }}>No response data</td>
                         </tr>
                       )}
-                  </tbody>
-                    </table>
-
-                  </div>
-                   {/* Quality Manager Feedback  */}
-                  <h2 id="details-title">Quality Manager Feedback</h2>
-                  <p><strong>Categorization:</strong> {selectedIncident.categorization || "—"}</p>
-                  <p>
-                    <strong>Type:</strong>{" "}
-                    {Array.isArray(selectedIncident.type)
-                      ? selectedIncident.type.join(", ")
-                      : selectedIncident.type || "—"}
-                  </p>
-                  <p><strong>Effectiveness Result:</strong> {selectedIncident.EffectivenessResult || "—"}</p>
-                  <p><strong>Risk Scoring:</strong> {selectedIncident.riskScoring || "—"}</p>
-                </>
-              )}
-
-
-              <h2>Send to the Department</h2>
-              <div id="filters">
-              <select
-              value={this.state.selectedDepartmentId}
-              onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
-              >
-              <option value="">Select Department</option>
-              {this.state.departments.map(dept => (
-                <option key={dept.DepartmentID} value={dept.DepartmentID}>
-                  {dept.DepartmentName}
-                </option>
-              ))}
-            </select>
-
-                <button onClick={this.handleAssignDepartment}>Submit</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Update Modal */}
-
-          <div
-            className={`modal-bg ${showUpdateModal ? "active" : ""}`}
-            onClick={this.closeUpdateModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="update-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeUpdateModal}
-                aria-label="Close update modal"
-              >
-                ×
-              </button>
-
-              <form onSubmit={this.handleUpdateSubmit}>
-           
-                <div className="section">
-
-                <h3>Categorization</h3><br/>
-               <textarea
-                    value={this.state.categorization}
-                    onChange={(e) => this.setState({ categorization: e.target.value })}
-                    rows="2"
-                    placeholder=""
-                  />
-
-                  <h3>Type </h3>
-                  <div className="checkbox-group">
-                    <label>
-                      <input type="checkbox" name="type" value="Near Miss Events" />
-                      <strong>Near Miss Events:</strong> any process variation that did not affect an outcome but for which a recurrence carries a significant chance of a serious adverse outcome
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Adverse Events" />
-                      <strong>Adverse Events:</strong> An event that results in injury or ill-health after reaching the patient
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Significant Events" />
-                      <strong>Significant Events:</strong> Significant unexpected events can happen even in hospitals
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Sentinel Events" />
-                      <strong>Sentinel Events</strong>: is a Patient Safety Event that reaches a patient and needs an immediate investigation and response
-                    </label>
-                  </div>
-
-                  
-                  <h3>Risk Scoring</h3>
-                  <div id = 'filters'>
-                    <select>
-                       <option value="RiskScoring">1</option>
-                       <option value="RiskScoring">2</option>
-                       <option value="RiskScoring">3</option>
-                        <option value="RiskScoring">4</option>
-                     <option value="RiskScoring">5</option>
-                    </select> 
-                  </div>
-
-                  <h3>Corrective/Preventive Action Effectiveness Review after Implementation:</h3>
-                  <div id = 'filters'>
-                    <select>
-                      <option value="Effectivness"> Effective (OVR Closed) </option>
-                      <option value="Effectiness">Ineffective (Needs another corrective/preventive action) </option>
-
-                    </select> 
-                  </div>
+                    </tbody>
+                  </table>
                 </div>
 
-                <button type="submit" 
-                    className="btn-quality"
-                    onClick={() => alert("Reply sent!")}>
-                  Submit Update
-                </button>
-              </form>
-            </div>
-          </div>
-          <div
-            className={`modal-bg ${showUpdateModal ? "active" : ""}`}
-            onClick={this.closeUpdateModal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="update-title"
-          >
-            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-              <button
-                className="close-btn"
-                onClick={this.closeUpdateModal}
-                aria-label="Close update modal"
-              >
-                ×
-              </button>
+                {/* Quality Feedback */}
+                <div className="section">
+                  <h3>Quality Manager Feedback</h3>
+                  <div className="grid-2">
+                  <p><strong>Categorization:</strong> {selectedIncident.categorization || "—"}</p>
+                  <p><strong>Type:</strong> {Array.isArray(selectedIncident.type) ? selectedIncident.type.join(", ") : selectedIncident.type || "—"}</p>
+                  <p><strong>Risk Scoring:</strong> {selectedIncident.riskScoring || "—"}</p>
+                  <p><strong>Effectiveness:</strong> {selectedIncident.effectiveness || "—"}</p>
+                  <p><strong>Quality Specialist Name:</strong> {selectedIncident.qualitySpecialistName|| "—"}</p>
 
-              <form onSubmit={this.handleUpdateSubmit}>
-              <div className="section">
-  
-            </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+          {/* Update Modal */}
+        <div
+          className={`modal-bg ${showUpdateModal ? "active" : ""}`}
+          onClick={this.closeUpdateModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="update-title"
+        >
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="close-btn"
+              onClick={this.closeUpdateModal}
+              aria-label="Close update modal"
+            >
+              ×
+            </button>
+
+            <form onSubmit={this.handleUpdateSubmit}>
               <h1>Quality Feedback</h1>
 
               <div className="section">
+                <h3>Categorization</h3>
+                <textarea
+                  value={this.state.categorization}
+                  onChange={(e) => this.setState({ categorization: e.target.value })}
+                  rows="2"
+                  placeholder=""
+                />
 
-              <h3>Categorization</h3><br/>
-               <textarea
-                    value={this.state.categorization}
-                    onChange={(e) => this.setState({ categorization: e.target.value })}
-                    rows="2"
-                    placeholder=""
-                  />
 
-                  <h3>Type </h3>
-                  <div className="checkbox-group">
-                    <label>
-                      <input type="checkbox" name="type" value="Near Miss Events" />
-                      <strong>Near Miss Events:</strong> any process variation that did not affect an outcome but for which a recurrence carries a significant chance of a serious adverse outcome
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Adverse Events" />
-                      <strong>Adverse Events:</strong> An event that results in injury or ill-health after reaching the patient
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Significant Events" />
-                      <strong>Significant Events:</strong> Significant unexpected events can happen even in hospitals
-                    </label><br/><br/>
-                    <label>
-                      <input type="checkbox" name="type" value="Sentinel Events" />
-                      <strong>Sentinel Events</strong>: is a Patient Safety Event that reaches a patient and needs an immediate investigation and response
+                <h3>Type</h3>
+                <div className="checkbox-group">
+                  {["Near Miss Events", "Adverse Events", "Significant Events", "Sentinel Events"].map((item) => (
+                    <label key={item}>
+                      <input
+                        type="checkbox"
+                        name="type"
+                        value={item}
+                        onChange={this.handleCheckboxChange}
+                        checked={this.state.type.includes(item)}
+                      />
+                      <strong>{item}</strong>
                     </label>
-                  </div>
-
-                  
-                  <h3>Risk Scoring</h3>
-                  <div id = 'filters'>
-                    <select>
-                       <option value="RiskScoring">1</option>
-                       <option value="RiskScoring">2</option>
-                       <option value="RiskScoring">3</option>
-                        <option value="RiskScoring">4</option>
-                     <option value="RiskScoring">5</option>
-                    </select> 
-                  </div>
-
-                  <h3>Corrective/Preventive Action Effectiveness Review after Implementation:</h3>
-                  <div id = 'filters'>
-                    <select>
-                      <option value="Effectivness"> Effective (OVR Closed) </option>
-                      <option value="Effectiness">Ineffective (Needs another corrective/preventive action) </option>
-
-                    </select> 
-                  </div>
+                  ))}
+                </div>
+                
+                <h3>Risk Scoring</h3>
+                <div id="filters">
+                <select
+                  value={this.state.riskScoring}
+                  onChange={(e) => this.setState({ riskScoring: e.target.value })}
+                >
+                  <option value="">Select Risk</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
                 </div>
 
-                <button type="submit" 
-                    className="btn-quality"
-                    onClick={() => alert("Reply sent!")}>
-                  Submit Update
-                </button>
-              </form>
-            </div>
-            
-          </div>
+                <h3>Corrective/Preventive Action Effectiveness Review</h3>
+                <div id="filters">
 
-        </main>
+                <select
+                  value={this.state.effectiveness}
+                  onChange={(e) => this.setState({ effectiveness: e.target.value })}
+                >
+                  <option value="">Select Effectiveness</option>
+                  <option value="Effective">Effective (OVR Closed)</option>
+                  <option value="Ineffective">Ineffective (Needs another action)</option>
+                </select>
+                </div>
+              
+              </div>
+              <button type="submit" className="btn-quality">
+                Submit Update
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
     );
   }

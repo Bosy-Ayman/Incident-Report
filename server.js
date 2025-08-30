@@ -1,32 +1,86 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const path = require("path");
 const sql = require("mssql/msnodesqlv8");
 const cors = require("cors");
-
 const app = express();
+app.use(express.json()); 
 const port = 3000;
+const path = require("path");
+const multer = require("multer");
+const session = require("express-session");
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(express.static(path.join(__dirname, "build")));
+app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
+// ------------------- SESSION SETUP -------------------
+app.use(
+  session({
+    secret: "mySuperSecret123!",
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false }, // false for localhost
+  })
+);
 const dbConfig = {
   connectionString:
-    "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=IncidentssReport;Trusted_Connection=Yes;",
+    "Driver={ODBC Driver 17 for SQL Server};Server=BOSY\\SQLEXPRESS;Database=InR;Trusted_Connection=Yes;",
 };
 
 module.exports = { sql, dbConfig };
-app.use(cors());
+// ------------------- MIDDLEWARE -------------------
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+function requireDepartmentAccess(req, res, next) {
+  const requestedDept = parseInt(req.params.departmentId);
+  const userDept = req.session.user.departmentId;
+
+  if (requestedDept !== userDept) {
+    return res.status(403).json({ status: "error", message: "Forbidden" });
+  }
+  next();
+}
+function requireLogin(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ status: "error", message: "Unauthorized" });
+  }
+  next();
+}
+
+function requireQualityDepartment(req, res, next) {
+  if (req.session.user.departmentId !== 34) {
+    return res.status(403).json({ status: "error", message: "Forbidden" });
+  }
+  next();
+}
 
 
-app.use(express.static(path.join(__dirname, "build")));
+//------------------------------Handle adding attachments------- 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => {
+    const incidentId = req.body.IncidentID || "unknown";
+    const timestamp = Date.now();
+    const ext = path.extname(file.originalname);
+    cb(null, `file_${incidentId}_${timestamp}${ext}`);
+  },
+});
+
+// Define upload using the storage
+const upload = multer({ storage: storage });
+
+// Route
+
 
 // --------------------------------------------- incident-form-----------------------------------------------------------
-app.post("/incident-form", async (req, res) => {
+// use multer to parse form-data with attachments
+app.post("/incident-form", upload.array("attachment"), async (req, res) => {
   let pool;
   try {
     pool = await sql.connect(dbConfig);
 
+    // req.body now works with form-data
     const {
       reporter_name,
       reporter_title,
@@ -36,20 +90,25 @@ app.post("/incident-form", async (req, res) => {
       location,
       description,
       immediate_action,
-      patient,
+      patientChecked,
       patient_name,
       mrn,
-      employee,
+      employeeChecked,
       employee_name,
-      visitor,
+      visitorChecked,
       visitor_name
     } = req.body;
+
+    // get uploaded file names (comma separated string)
+    const attachments = req.files && req.files.length > 0
+      ? req.files.map(f => f.filename).join(",")
+      : null;
 
     const reportDatetime = new Date(report_time);
     const reportDate = reportDatetime.toISOString().split("T")[0];
     const reportTimeOnly = reportDatetime.toTimeString().split(" ")[0];
 
-    // Insert reporter and get ID
+    // Insert reporter
     let result = await pool
       .request()
       .input("Name", sql.NVarChar, reporter_name)
@@ -64,7 +123,7 @@ app.post("/incident-form", async (req, res) => {
 
     const reporter_id = result.recordset[0].id;
 
-    // Insert incident and get ID
+    // Insert incident (attachments included)
     result = await pool
       .request()
       .input("ReporterID", sql.Int, reporter_id)
@@ -73,7 +132,7 @@ app.post("/incident-form", async (req, res) => {
       .input("Location", sql.NVarChar, location)
       .input("Description", sql.NVarChar, description)
       .input("ImmediateAction", sql.NVarChar, immediate_action || null)
-      .input("Attachments", sql.NVarChar, null)
+      .input("Attachments", sql.NVarChar, attachments)
       .query(`
         INSERT INTO Incidents (ReporterID, IncidentDate, IncidentTime, Location, Description, ImmediateAction, Attachments)
         VALUES (@ReporterID, @IncidentDate, @IncidentTime, @Location, @Description, @ImmediateAction, @Attachments);
@@ -83,9 +142,8 @@ app.post("/incident-form", async (req, res) => {
     const incident_id = result.recordset[0].id;
 
     // Insert affected individuals
-    if (patient && patient_name && mrn) {
-      await pool
-        .request()
+    if (patientChecked && patient_name && mrn) {
+      await pool.request()
         .input("IncidentID", sql.Int, incident_id)
         .input("Name", sql.NVarChar, patient_name)
         .input("MRN", sql.NVarChar, mrn)
@@ -95,9 +153,8 @@ app.post("/incident-form", async (req, res) => {
         `);
     }
 
-    if (employee && employee_name) {
-      await pool
-        .request()
+    if (employeeChecked && employee_name) {
+      await pool.request()
         .input("IncidentID", sql.Int, incident_id)
         .input("Name", sql.NVarChar, employee_name)
         .query(`
@@ -106,9 +163,8 @@ app.post("/incident-form", async (req, res) => {
         `);
     }
 
-    if (visitor && visitor_name) {
-      await pool
-        .request()
+    if (visitorChecked && visitor_name) {
+      await pool.request()
         .input("IncidentID", sql.Int, incident_id)
         .input("Name", sql.NVarChar, visitor_name)
         .query(`
@@ -118,6 +174,7 @@ app.post("/incident-form", async (req, res) => {
     }
 
     res.json({ status: "success", message: "Incident report submitted successfully." });
+
   } catch (error) {
     console.error("Error handling incident form:", error);
     res.status(500).json({ status: "error", message: error.message });
@@ -126,9 +183,11 @@ app.post("/incident-form", async (req, res) => {
   }
 });
 
+
 // ------------------------------------------- UPDATE INCIDENT FOR QUALITY -------------------------------------------
 
 app.get("/quality", async (req, res) => {
+  console.log("Quality endpoint hit, user:", req.session.user);
   let pool;
   try {
     pool = await sql.connect(dbConfig);
@@ -137,38 +196,69 @@ app.get("/quality", async (req, res) => {
       SELECT 
           i.IncidentID,
           i.IncidentDate,
+          i.IncidentTime,
           i.Location,
           r.Name AS ReporterName,
           r.Title AS ReporterTitle,
           r.ReportDate,
           r.ReportTime,
-          i.Description,
+          i.Description AS IncidentDescription,
           i.status,
           i.responded,
           i.Attachments,
-          i.ImmediateAction,
-          STRING_AGG(ai.Name, ', ') AS AffectedIndividualsNames,  
-          STRING_AGG(ai.Type + ': ' + ai.Name, ', ') AS AffectedList  
+          i.DepartmentID,
+          d.DepartmentName,
+          -- Feedback fields
+          q.ReviewedFlag,
+          MAX(q.Type) AS FeedbackType,
+          MAX(q.Categorization) AS FeedbackCategorization,
+          MAX(q.RiskScoring) AS FeedbackRiskScoring,
+          MAX(q.EffectivenessResult) AS FeedbackEffectiveness,
+          MAX(q.QualityID) AS QualityID,
+          MAX(u.UserName) AS QualitySpecialistName,
+          CASE WHEN MAX(q.FeedbackFlag) = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
+
+          -- Gather all responses per incident as JSON
+          (
+            SELECT dr.ResponseID, dr.Reason, dr.CorrectiveAction, dr.ResponseDate, dr.DueDate, d2.DepartmentName
+            FROM DepartmentResponse dr
+            LEFT JOIN Departments d2 ON dr.DepartmentID = d2.DepartmentID
+            WHERE dr.IncidentID = i.IncidentID
+            FOR JSON PATH
+          ) AS Responses,
+
+          -- Affected individuals list
+          STUFF((
+            SELECT ', ' + ai2.Name
+            FROM AffectedIndividuals ai2
+            WHERE ai2.IncidentID = i.IncidentID
+            FOR XML PATH(''), TYPE
+          ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedIndividualsNames
+
       FROM Incidents i
       JOIN Reporters r ON i.ReporterID = r.ReporterID
-      LEFT JOIN AffectedIndividuals ai ON i.IncidentID = ai.IncidentID
+      LEFT JOIN Departments d ON i.DepartmentID = d.DepartmentID
+      LEFT JOIN QualityReviews q ON q.IncidentID = i.IncidentID
+      LEFT JOIN Users u ON q.QualityID = u.UserID
+
       GROUP BY 
           i.IncidentID, 
           i.IncidentDate, 
+          i.IncidentTime,
           i.Location, 
           r.Name, 
           r.Title, 
           r.ReportDate, 
           r.ReportTime,
           i.Description, 
-          i.ImmediateAction,
           i.status,
           i.responded,
-          i.Attachments
+          i.Attachments,
+          i.DepartmentID,
+          d.DepartmentName,
+          q.ReviewedFlag
       ORDER BY i.IncidentID DESC;
-
     `;
-
 
     const result = await pool.request().query(query);
 
@@ -183,7 +273,8 @@ app.get("/quality", async (req, res) => {
 
 
 // ====================== UPDATE INCIDENT (store DepartmentID) ======================
-app.put("/quality", async (req, res) => {
+
+app.put("/quality", requireLogin, requireQualityDepartment, async (req, res) => {
   const { incidentId, departmentId } = req.body;
 
   if (!incidentId || !departmentId) {
@@ -199,11 +290,12 @@ app.put("/quality", async (req, res) => {
       .input("departmentId", sql.Int, departmentId)
       .query(`
         UPDATE Incidents
-        SET DepartmentID = @departmentId
+        SET DepartmentID = @departmentId,
+            status = 'Assigned' 
         WHERE IncidentID = @incidentId
       `);
 
-    res.json({ status: "success", message: "Department assigned successfully" });
+    res.json({ status: "success", message: "Department assigned and status updated to Assigned" });
   } catch (error) {
     console.error("Error assigning department:", error);
     res.status(500).json({ status: "error", message: error.message });
@@ -212,101 +304,277 @@ app.put("/quality", async (req, res) => {
   }
 });
 
-//------------------------------------------ All Departments -------------------------------------------
+//------------------------GET All Departments FOR Forwarding the incident-------------------------
 
-app.get("/departments", async (req, res) => {
+app.get("/departments", requireLogin, async (req, res) => {
   let pool;
   try {
     pool = await sql.connect(dbConfig);
-
     const result = await pool.request().query(`
       SELECT DepartmentID, DepartmentName
       FROM Departments
       ORDER BY DepartmentName
     `);
-
     res.json(result.recordset);
-  } catch (error) {
-    console.error("Error fetching departments:", error);
-    res.status(500).json({ status: "error", message: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: err.message });
   } finally {
     if (pool) await pool.close();
   }
 });
 
+//----------------------------- Add/Update Department Response ------------------------
+app.put("/department-response", requireLogin, async (req, res) => {
+  const { ResponseID, IncidentID, DepartmentID, Reason, CorrectiveAction, DueDate } = req.body;
+
+  if (!IncidentID || !DepartmentID) {
+    return res.status(400).json({ status: "error", message: "IncidentID and DepartmentID are required" });
+  }
+
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+    const now = new Date(); 
+    let responseIdResult;
+
+    if (ResponseID) {
+      // UPDATE existing response
+      await pool.request()
+        .input("ResponseID", sql.Int, ResponseID)
+        .input("Reason", sql.NVarChar, Reason)
+        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
+        .input("ResponseDate", sql.DateTime, now)
+        .input("DueDate", sql.Date, DueDate || null)
+        .query(`
+          UPDATE DepartmentResponse 
+          SET Reason = @Reason,
+              CorrectiveAction = @CorrectiveAction,
+              ResponseDate = @ResponseDate,
+              DueDate = @DueDate
+          WHERE ResponseID = @ResponseID
+        `);
+      
+      responseIdResult = ResponseID;
+    } else {
+      // INSERT new response
+      const result = await pool.request()
+        .input("IncidentID", sql.Int, IncidentID)
+        .input("DepartmentID", sql.Int, DepartmentID)
+        .input("Reason", sql.NVarChar, Reason)
+        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
+        .input("ResponseDate", sql.DateTime, now)
+        .input("DueDate", sql.Date, DueDate || null)
+        .query(`
+          INSERT INTO DepartmentResponse
+            (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, DueDate)
+          VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @DueDate);
+          SELECT SCOPE_IDENTITY() AS ResponseID;
+        `);
+      
+      responseIdResult = result.recordset[0].ResponseID;
+    }
+
+    // Update incident status to 'Pending' after department responds
+    await pool.request()
+      .input("incidentId", sql.Int, IncidentID)
+      .query(`
+        UPDATE Incidents
+        SET responded = 'Yes',
+            status = 'Pending'
+        WHERE IncidentID = @incidentId
+      `);
+
+    res.json({ 
+      status: "success", 
+      message: ResponseID ? "Response updated successfully" : "Response saved successfully",
+      ResponseID: responseIdResult 
+    });
+
+  } catch(err) {
+    console.error("Error saving department response:", err);
+    res.status(500).json({ status: "error", message: err.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+//------------------ Insert Quality Feedback -----------------------------
+app.post("/quality-feedback", requireLogin, requireQualityDepartment, async (req, res) => {
+  const { incidentId, type, categorization, riskScoring, effectiveness} = req.body;
+
+  if (!incidentId) {
+    return res.status(400).json({ status: "error", message: "IncidentID is required" });
+  }
+
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+
+    const risk = riskScoring ? parseInt(riskScoring) : null;
+    
+    // Get user information from session
+    const userId = req.session.user.id;
+    
+    console.log({ 
+      incidentId, 
+      type, 
+      categorization, 
+      risk, 
+      effectiveness, 
+      userId, 
+    }); 
+
+    // Check if feedback already exists for this incident
+    const existingFeedback = await pool.request()
+      .input("IncidentID", sql.Int, incidentId)
+      .query(`
+        SELECT * FROM QualityReviews 
+        WHERE IncidentID = @IncidentID
+      `);
+
+    if (existingFeedback.recordset.length > 0) {
+      // UPDATE existing feedback
+      await pool.request()
+        .input("IncidentID", sql.Int, incidentId)
+        .input("Type", sql.VarChar(255), type)
+        .input("Categorization", sql.VarChar(255), categorization)
+        .input("RiskScoring", sql.Int, risk)
+        .input("EffectivenessResult", sql.VarChar(50), effectiveness)
+        .input("QualityID", sql.Int, userId)
+        .query(`
+          UPDATE QualityReviews
+          SET Type = @Type,
+              Categorization = @Categorization,
+              RiskScoring = @RiskScoring,
+              EffectivenessResult = @EffectivenessResult,
+              QualityID = @QualityID,
+              FeedbackFlag = 'true'
+          WHERE IncidentID = @IncidentID
+        `);
+    } else {
+      // INSERT new feedback
+      await pool.request()
+        .input("IncidentID", sql.Int, incidentId)
+        .input("Type", sql.VarChar(255), type)
+        .input("Categorization", sql.VarChar(255), categorization)
+        .input("RiskScoring", sql.Int, risk)
+        .input("EffectivenessResult", sql.VarChar(50), effectiveness)
+        .input("QualityID", sql.Int, userId)
+        .query(`
+          INSERT INTO QualityReviews
+          (IncidentID, Type, Categorization, RiskScoring, EffectivenessResult, QualityID, FeedbackFlag)
+          VALUES
+          (@IncidentID, @Type, @Categorization, @RiskScoring, @EffectivenessResult, @QualityID, 'true')
+        `);
+    }
+
+    res.status(200).json({ status: "success", message: "Feedback saved successfully" });
+
+  } catch (err) {
+    console.error("Error saving quality feedback:", err.message, err);
+    res.status(500).json({ status: "error", message: "Failed to save feedback", detail: err.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+
+
 //------------------------------ GET incidents for a specific department-------------------------------
-app.get("/departments/:departmentId", async (req, res) => {
+app.get("/departments/:departmentId", requireLogin, requireDepartmentAccess, async (req, res) => {
   const { departmentId } = req.params;
   let pool;
   try {
     pool = await sql.connect(dbConfig);
-
     const result = await pool.request()
       .input("departmentId", sql.Int, departmentId)
       .query(`
-          SELECT 
-              i.IncidentID,
-              i.IncidentDate,
-              i.IncidentTime,
-              i.Location,
-              r.Name AS ReporterName,
-              r.Title AS ReporterTitle,
-              r.ReportDate,
-              r.ReportTime,
-              i.Description,
-              i.ImmediateAction,
-              i.Attachments,
-              i.status,
-              i.responded,
-              d.DepartmentName,
-              STRING_AGG(ai.Type + ': ' + ai.Name, ', ') AS AffectedList
-          FROM Incidents i
-          JOIN Reporters r ON i.ReporterID = r.ReporterID
-          LEFT JOIN Departments d ON i.DepartmentID = d.DepartmentID
-          LEFT JOIN AffectedIndividuals ai ON i.IncidentID = ai.IncidentID
-          WHERE i.DepartmentID = @departmentId
-          GROUP BY 
-              i.IncidentID,
-              i.IncidentDate,
-              i.IncidentTime,
-              i.Location,
-              r.Name,
-              r.Title,
-              r.ReportDate,
-              r.ReportTime,
-              i.Description,
-              i.ImmediateAction,
-              i.Attachments,
-              i.status,
-              i.responded,
-              d.DepartmentName
-          ORDER BY i.IncidentID DESC
-      `);
+        SELECT 
+            i.IncidentID,
+            i.IncidentDate,
+            i.IncidentTime,
+            i.Location,
+            r.Name AS ReporterName,
+            r.Title AS ReporterTitle,
+            r.ReportDate,
+            r.ReportTime,
+            i.Description,
+            i.status,
+            i.responded,
+            i.Attachments,
+            i.DepartmentID,
+            d.DepartmentName,
 
+            MAX(q.Type) AS Type,
+            MAX(q.Categorization) AS FeedbackCategorization,
+            MAX(q.RiskScoring) AS FeedbackRiskScoring,
+            MAX(q.EffectivenessResult) AS FeedbackEffectiveness,
+            CASE WHEN MAX(q.FeedbackFlag) = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
+
+            MAX(dr.DueDate) AS DueDate,
+            MAX(dr.ResponseDate) AS ResponseDate,
+
+            STUFF((
+              SELECT ', ' + ai2.Name
+              FROM AffectedIndividuals ai2
+              WHERE ai2.IncidentID = i.IncidentID
+              FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedIndividualsNames,
+
+            STUFF((
+              SELECT ', ' + ai2.Type + ': ' + ai2.Name
+              FROM AffectedIndividuals ai2
+              WHERE ai2.IncidentID = i.IncidentID
+              FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedList
+
+        FROM Incidents i
+        JOIN Reporters r ON i.ReporterID = r.ReporterID
+        LEFT JOIN Departments d ON i.DepartmentID = d.DepartmentID
+        LEFT JOIN QualityReviews q ON q.IncidentID = i.IncidentID
+        LEFT JOIN DepartmentResponse dr ON dr.IncidentID = i.IncidentID
+
+        WHERE i.DepartmentID = @departmentId  
+
+        GROUP BY 
+            i.IncidentID, 
+            i.IncidentDate, 
+            i.IncidentTime,
+            i.Location, 
+            r.Name, 
+            r.Title, 
+            r.ReportDate, 
+            r.ReportTime,
+            i.Description, 
+            i.ImmediateAction,
+            i.status,
+            i.responded,
+            i.Attachments,
+            i.DepartmentID,
+            d.DepartmentName
+
+        ORDER BY i.IncidentID DESC;
+      `);
     res.json({ status: "success", data: result.recordset });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ status: "error", message: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: err.message });
   } finally {
     if (pool) await pool.close();
   }
 });
 
-// ----------------------------------------- login -------------------------------------------------------
+// ----------------------------------------- login -------------------------------------
 app.post("/login", async (req, res) => {
-  const { UserID, Password } = req.body;
+  const { UserID, Password } = req.body || {}; 
 
   if (!UserID || !Password) {
-    return res.status(400).json({
-      status: "error",
-      message: "UserID and Password are required",
-    });
+    return res.status(400).json({ status: "error", message: "UserID and Password required" });
   }
 
   let pool;
   try {
     pool = await sql.connect(dbConfig);
-
     const result = await pool
       .request()
       .input("UserID", sql.Int, UserID)
@@ -318,122 +586,240 @@ app.post("/login", async (req, res) => {
         WHERE u.UserID = @UserID
       `);
 
-    if (result.recordset.length === 0) {
-      return res.status(404).json({
-        status: "error",
-        message: "UserID not found",
-      });
-    }
+    if (result.recordset.length === 0)
+      return res.status(404).json({ status: "error", message: "UserID not found" });
 
     const user = result.recordset[0];
+    if (user.Password !== Password)
+      return res.status(401).json({ status: "error", message: "Incorrect password" });
 
-    if (user.Password !== Password) {
-      return res.status(401).json({
-        status: "error",
-        message: "Incorrect password",
-      });
-    }
-
+    // Save user session
+    req.session.user = {
+      id: user.UserID,
+      departmentId: user.DepartmentID,
+      name: user.UserName,
+    };
 
     return res.json({
       status: "success",
       message: "Login successful",
       userId: user.UserID,
-      userName: user.UserName,
       departmentId: user.DepartmentID,
       departmentName: user.DepartmentName,
     });
 
-  } catch (error) {
-    console.error("Error during login:", error);
-    return res.status(500).json({
-      status: "error",
-      message: error.message,
+  } catch (err) {
+    console.error("Login error:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+//------------------------------------Modify reviewed flag by the manager-------------
+app.put('/quality/reviewed', async (req, res) => {
+  let pool;
+  try {
+    console.log("Received request body:", req.body);
+    console.log("Session user:", req.session?.user);
+    console.log("Request headers:", req.headers);
+
+    const { IncidentID, reviewedBy, userId, qualityId } = req.body;
+    
+    // Validate required fields
+    if (!IncidentID) {
+      console.log("Missing IncidentID");
+      return res.status(400).json({ 
+        status: "error", 
+        message: "IncidentID is required" 
+      });
+    }
+
+    // Get current user ID from multiple sources
+    let currentUserId = null;
+    
+    // Try to get from session first
+    if (req.session?.user?.id) {
+      currentUserId = req.session.user.id;
+      console.log("Got user ID from session:", currentUserId);
+    }
+    // Try from request body
+    else if (userId) {
+      currentUserId = parseInt(userId);
+      console.log("Got user ID from request body:", currentUserId);
+    }
+    else if (qualityId) {
+      currentUserId = parseInt(qualityId);
+      console.log("Got quality ID from request body:", currentUserId);
+    }
+    // Try to extract from JWT token if using token-based auth
+    else if (req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.replace('Bearer ', '');
+        // If you're using JWT, decode it here to get user ID
+        // const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // currentUserId = decoded.userId;
+        console.log("Token found but no JWT decode implemented");
+      } catch (tokenError) {
+        console.log("Token decode failed:", tokenError.message);
+      }
+    }
+
+    console.log("Final current user ID:", currentUserId);
+
+    // Check if we have a user ID
+    if (!currentUserId) {
+      console.log("No user ID found in session, body, or token");
+      return res.status(401).json({ 
+        status: "error", 
+        message: "User not authenticated" 
+      });
+    }
+
+    // Check if user is authorized (must be UserID = 1033)
+    if (parseInt(currentUserId) !== 1033) {
+      console.log("Unauthorized user attempting to review:", currentUserId);
+      return res.status(403).json({ 
+        status: "error", 
+        message: `Unauthorized: Only quality managers (ID: 1033) can review incidents. Your ID: ${currentUserId}` 
+      });
+    }
+
+    console.log("User authorized as quality manager (1033)");
+
+    pool = await sql.connect(dbConfig);
+    
+    // First check if the incident exists and has feedback
+    const checkResult = await pool
+      .request()
+      .input("IncidentID", sql.Int, parseInt(IncidentID))
+      .query(`
+        SELECT IncidentID, FeedbackFlag, ReviewedFlag
+        FROM QualityReviews 
+        WHERE IncidentID = @IncidentID
+      `);
+
+    if (checkResult.recordset.length === 0) {
+      console.log("Incident not found in QualityReviews:", IncidentID);
+      return res.status(404).json({ 
+        status: "error", 
+        message: "Incident not found in quality reviews" 
+      });
+    }
+
+    const incident = checkResult.recordset[0];
+    console.log("Found incident:", incident);
+
+    // Check if feedback exists
+    if (incident.FeedbackFlag !== 1) {
+      return res.status(400).json({ 
+        status: "error", 
+        message: "Cannot review incident without feedback" 
+      });
+    }
+
+    // Check if already reviewed
+    if (incident.ReviewedFlag === 1) {
+      return res.status(400).json({ 
+        status: "error", 
+        message: "Incident has already been reviewed" 
+      });
+    }
+
+    // Update the reviewed flag
+    const updateResult = await pool
+      .request()
+      .input("IncidentID", sql.Int, parseInt(IncidentID))
+      .input("ReviewedBy", sql.VarChar(100), reviewedBy || "Quality Manager")
+      .input("ReviewedDate", sql.DateTime, new Date())
+      .input("QualityID", sql.Int, parseInt(currentUserId))
+      .query(`
+        UPDATE QualityReviews 
+        SET ReviewedFlag = 1,
+            ReviewedBy = @ReviewedBy,
+            ReviewedDate = @ReviewedDate,
+            QualityID = @QualityID
+        WHERE IncidentID = @IncidentID
+      `);
+
+    console.log("Update result rows affected:", updateResult.rowsAffected);
+
+    if (updateResult.rowsAffected[0] === 0) {
+      return res.status(404).json({ 
+        status: "error", 
+        message: "Failed to update incident review status" 
+      });
+    }
+
+    console.log("Successfully marked incident as reviewed");
+
+    return res.json({
+      status: "success",
+      message: "Incident marked as reviewed successfully",
+      incidentID: IncidentID,
+      reviewedBy: reviewedBy || "Quality Manager",
+      qualityManagerId: currentUserId
+    });
+
+  } catch (err) {
+    console.error("Quality review error:", err);
+    console.error("Error stack:", err.stack);
+    return res.status(500).json({ 
+      status: "error", 
+      message: "Internal server error: " + err.message 
     });
   } finally {
     if (pool) await pool.close();
   }
 });
 
-
-//-----------------------------   Get  Department Response ------------------------
-
-app.get('/department-response', async (req, res) => {
-  const { UserID } = req.query; 
-
-  if (!UserID) {
-    return res.status(400).json({ error: "UserID is required" });
-  }
-
-  let pool;
+// Optional: Add a helper endpoint to check current user info
+app.get('/current-user', async (req, res) => {
   try {
-    pool = await sql.connect(dbConfig);
-    const result = await pool
-      .request()
-      .input("UserID", sql.Int, UserID)
-      .query(`
-          SELECT u.UserID, u.UserName,  
-                d.ResponseID, d.IncidentID,d.DepartmentName, d.DepartmentID, d.Reason, 
-                d.CorrectiveAction, d.ResponseDate, d.ResponseTime, d.Version
-          FROM Users u
-          JOIN DepartmentResponse d ON u.DepartmentID = d.DepartmentID
-          WHERE u.UserID = @UserID
+    console.log("Current user request - Session:", req.session?.user);
+    
+    if (!req.session?.user) {
+      return res.status(401).json({ 
+        status: "error", 
+        message: "Not authenticated" 
+      });
+    }
 
-      `);
-
-    res.json(result.recordset); 
+    return res.json({
+      status: "success",
+      userId: req.session.user.id,
+      userName: req.session.user.name,
+      departmentId: req.session.user.departmentId,
+      isQualityManager: req.session.user.id === 1033
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  } finally {
-    if (pool) pool.close();
+    console.error("Current user error:", err);
+    return res.status(500).json({ 
+      status: "error", 
+      message: err.message 
+    });
   }
 });
-
-// ------------------- UPDATE Department Response -------------------
-
-app.put("/department-response", async (req, res) => {
-  const { ResponseID, IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate } = req.body;
-
-  if (!IncidentID || !DepartmentID) {
-    return res.status(400).json({ status: "error", message: "IncidentID and DepartmentID are required" });
+//--------------------------------------CLOSE INCIDENT -------------------------------
+app.put("/quality/close-incident", requireLogin, requireQualityDepartment, async (req, res) => {
+  const { IncidentID } = req.body; 
+  if (!IncidentID) {
+    return res.status(400).json({ status: "error", message: "Incident ID is required" });
   }
 
   let pool;
   try {
     pool = await sql.connect(dbConfig);
-    if (ResponseID) {
-      // UPDATE existing response
-      await pool.request()
-        .input("ResponseID", sql.Int, ResponseID)
-        .input("Reason", sql.NVarChar, Reason)
-        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
-        .input("ResponseDate", sql.Date, ResponseDate || null)
-        .query(`
-          UPDATE DepartmentResponse
-          SET Reason = @Reason,
-              CorrectiveAction = @CorrectiveAction,
-              ResponseDate = @ResponseDate
-          WHERE ResponseID = @ResponseID
-        `);
-      res.json({ status: "success", message: "Response updated successfully" });
-    } else {
-      // INSERT new response
-      const result = await pool.request()
-        .input("IncidentID", sql.Int, IncidentID)
-        .input("DepartmentID", sql.Int, DepartmentID)
-        .input("Reason", sql.NVarChar, Reason)
-        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
-        .input("ResponseDate", sql.Date, ResponseDate || null)
-        .query(`
-          INSERT INTO DepartmentResponse (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate)
-          VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate);
-          SELECT SCOPE_IDENTITY() AS ResponseID;
-        `);
 
-      const newResponseID = result.recordset[0].ResponseID;
-      res.json({ status: "success", message: "Response created successfully", ResponseID: newResponseID });
-    }
+    await pool.request()
+      .input("IncidentID",sql.Int, IncidentID)
+      .query(`
+        UPDATE Incidents
+        SET status = 'Done'
+        WHERE IncidentID = @IncidentID
+      `);
+
+    res.json({ status: "success", message: "Incident closed successfully" });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ status: "error", message: err.message });
@@ -442,90 +828,116 @@ app.put("/department-response", async (req, res) => {
   }
 });
 
-// ------------------------ UPDATE Department Response --------------------------
 
-app.post("/responses", async (req, res) => {
-  const { incidentId, departmentId, reason, correctiveAction } = req.body;
-  
-  try {
-    pool = await sql.connect(dbConfig);
-    await pool.request()
-      .input("IncidentID", sql.Int, incidentId)
-      .input("DepartmentID", sql.Int, departmentId)
-      .input("Reason", sql.Text, reason)
-      .input("CorrectiveAction", sql.Text, correctiveAction)
-      .input("ResponseDate", sql.Date, new Date())
-      .input("ResponseTime", sql.Time, new Date())
-      .input("Version", sql.Int, 1)
-      .query(`
-        INSERT INTO DepartmentResponse 
-          (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, ResponseTime, Version)
-        VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @ResponseTime, @Version)
-      `);
+//===============================DASHBOARD==========================================
 
-    res.status(200).json({ message: "Response saved successfully" });
-  } catch (err) {
-    console.error("Error inserting response:", err);
-    res.status(500).json({ error: "Failed to save response" });
-  }
-});
-//------------------------------------------------------------------------
-app.get("/quality/responses", async (req, res) => {
+//-----------------barchart->Number of Incidents per department---------------------
+
+app.get("/incident-per-department", requireLogin, async (req, res) => {
   let pool;
   try {
     pool = await sql.connect(dbConfig);
 
-    const result = await pool.request().query(`
-      SELECT dr.ResponseID, dr.IncidentID, dr.Reason, dr.CorrectiveAction, 
-             dr.ResponseDate, dr.ResponseTime, dr.Version,
-             d.DepartmentName, i.Description AS IncidentDescription
-      FROM DepartmentResponse dr
-      JOIN Departments d ON dr.DepartmentID = d.DepartmentID
-      JOIN Incidents i ON dr.IncidentID = i.IncidentID
-    `);
+    const query = `
+      SELECT 
+          d.DepartmentName,
+          SUM(CASE WHEN i.status = 'Assigned' THEN 1 ELSE 0 END) AS AssignedCount,
+          SUM(CASE WHEN i.status = 'Pending' THEN 1 ELSE 0 END) AS PendingCount,
+          SUM(CASE WHEN i.status = 'Done' THEN 1 ELSE 0 END) AS ClosedCount
+      FROM Incidents i
+      JOIN Departments d ON i.DepartmentID = d.DepartmentID
+      WHERE d.DepartmentName IS NOT NULL
+      GROUP BY d.DepartmentName
+      ORDER BY d.DepartmentName;
+    `;
 
+    const result = await pool.request().query(query);
     res.json({ status: "success", data: result.recordset });
-  } catch (err) {
-    console.error("Error fetching responses:", err);
-    res.status(500).json({ error: "Failed to fetch responses" });
+  } catch (error) {
+    console.error("Error fetching summary:", error);
+    res.status(500).json({ status: "error", message: error.message });
   } finally {
     if (pool) await pool.close();
   }
 });
-//---------------------------------Recieving Quality Feedback After Implementation-----------------------------------
 
-app.post("/quality/feedback", async (req, res) => {
-  const { incidentId, categorization, } = req.body;
-  
+//------------------- Piechart-> Affected Individuals Type -------------------------
+
+ app.get("/affected-types", requireLogin, async (req, res) => {
+  let pool;
+
   try {
     pool = await sql.connect(dbConfig);
-    await pool.request()
-      .input("IncidentID", sql.Int, incidentId)
-      .input("DepartmentID", sql.Int, departmentId)
-      .input("Reason", sql.Text, reason)
-      .input("CorrectiveAction", sql.Text, correctiveAction)
-      .input("ResponseDate", sql.Date, new Date())
-      .input("ResponseTime", sql.Time, new Date())
-      .input("Version", sql.Int, 1)
-      .query(`
-        INSERT INTO DepartmentResponse 
-          (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, ResponseTime, Version)
-        VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @ResponseTime, @Version)
-      `);
-
-    res.status(200).json({ message: "Response saved successfully" });
-  } catch (err) {
-    console.error("Error inserting response:", err);
-    res.status(500).json({ error: "Failed to save response" });
+    const query = `
+      SELECT ai.Type, 
+      COUNT(*) AS Count
+      FROM AffectedIndividuals ai
+      GROUP BY ai.Type
+      ORDER BY ai.Type;
+    `;
+    const result = await pool.request().query(query);
+    res.json({ status: "success", data: result.recordset });
+  } catch (error) {
+    console.error("Error fetching affected individuals:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
   }
 });
+//------------------- LineChart->Incident count per days -------------------------
+app.get("/incident-per-date", async (req, res) => {
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+    const query = `
+        WITH Dates AS (
+            SELECT DISTINCT IncidentDate
+            FROM Incidents
+        )
+        SELECT d.IncidentDate,
+              COALESCE(SUM(CASE WHEN i.status ='New' THEN 1 END), 0) AS NewIncidentCount,
+              COALESCE(SUM(CASE WHEN i.status ='Assigned' THEN 1 END), 0) AS AssignedIncidentCount,
+              COALESCE(SUM(CASE WHEN i.status = 'Pending' THEN 1 END), 0) AS PendingIncidentCount,
+              COALESCE(SUM(CASE WHEN i.status = 'Closed' THEN 1 END), 0) AS ClosedIncidentCount
+        FROM Dates d
+        LEFT JOIN Incidents i ON i.IncidentDate = d.IncidentDate
+        GROUP BY d.IncidentDate
+        ORDER BY d.IncidentDate;
 
 
+    `;
 
-//-----------------------------------------------------------------------------------
+    const result = await pool.request().query(query);
+    res.json({ status: "success", data: result.recordset });
+  } catch (error) {
+    console.error("Error fetching affected individuals:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
+  }
+});
+//------------------------PieChart->responded or NOT----------------------------
 
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "build", "index.html"));
+app.get("/if-responded", requireLogin, async (req, res) => {
+  let pool;
+  try {
+    pool = await sql.connect(dbConfig);
+    const query = `
+      SELECT ai.responded, 
+      COUNT(*) AS Count
+      FROM Incidents ai
+      GROUP BY ai.responded
+      ORDER BY ai.responded;
+    `;
+
+    const result = await pool.request().query(query);
+    res.json({ status: "success", data: result.recordset });
+  } catch (error) {
+    console.error("Error fetching affected individuals:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  } finally {
+    if (pool) await pool.close();
+  }
 });
 
 
