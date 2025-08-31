@@ -51,7 +51,7 @@ export default function Dashboard() {
       const date = new Date(row.IncidentDate);
       return date instanceof Date && !isNaN(date)
         ? date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        : "Invalid Date"; // fallback just in case
+        : "Invalid Date"; 
     });
 
     const counts = filtered.map(row => row.NewIncidentCount ?? 0);
@@ -166,7 +166,7 @@ export default function Dashboard() {
           series={[
             { data: barData.assignedCounts, label: 'Assigned', stack: 'total' },
             { data: barData.pendingCounts, label: 'Pending', stack: 'total' },
-            { data: barData.closedCounts, label: 'Closed', stack: 'total' },
+            { data: barData.closedCounts, label: 'Done', stack: 'total' },
           ]}
           xAxis={[{ data: barData.departments, scaleType: 'band' }]}
           yAxis={[{ width: 50 }]}

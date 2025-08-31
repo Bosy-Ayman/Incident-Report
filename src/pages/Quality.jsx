@@ -367,6 +367,7 @@ openUpdateModal = (incident) => {
             type: [],
             riskScoring: "",
             effectiveness: "",
+            Description:"",
             qualitySpecialistName: ""
           };
         });
@@ -606,7 +607,7 @@ openUpdateModal = (incident) => {
                       <strong>Affected Individuals:</strong> {selectedIncident.AffectedIndividualsNames || "—"}
                     </p>
                     <p className="span-2">
-                      <strong>Incident Description:</strong> {selectedIncident.Description || "—"}
+                      <strong>Incident Description:</strong> {selectedIncident.IncidentDescription || "—"}
                     </p>
                   </div>
                 </div>

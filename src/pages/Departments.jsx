@@ -70,9 +70,11 @@ export default class Departments extends Component {
             ReviewedFlag: incident.ReviewedFlag === false || incident.ReviewedFlag === 0 ? "No" 
                   : incident.ReviewedFlag === true || incident.ReviewedFlag === 1 ? "Yes" 
                   : "—",
+            AffectedIndividualsNames: qMatch?.AffectedIndividualsNames|| "—",
+            ImmediateAction: qMatch?.ImmediateAction|| "—",
+            IncidentDescription:qMatch?.IncidentDescription|| "—",
 
-            // Create Response array structure from flattened data
-           Response: incident.Reason || incident.CorrectiveAction ? [{
+            Response: incident.Reason || incident.CorrectiveAction ? [{
             ResponseDate: incident.ResponseDate,
             DueDate: incident.DueDate,
             Reason: incident.Reason,
@@ -294,7 +296,7 @@ export default class Departments extends Component {
                       <strong>Affected Individuals:</strong> {selectedIncident.AffectedIndividualsNames || "—"}
                     </p>
                     <p className="span-2">
-                      <strong>Incident Description:</strong> {selectedIncident.Description || "—"}
+                      <strong>Incident Description:</strong> {selectedIncident.IncidentDescription|| "—"}
                     </p>
                   </div>
                 </div>

@@ -18,7 +18,7 @@ app.use(cors());
 // ------------------- SESSION SETUP -------------------
 app.use(
   session({
-    secret: "mySuperSecret123!",
+    secret: "Secret123",
     resave: false,
     saveUninitialized: false,
     cookie: { secure: false },// false for localhost
@@ -207,6 +207,7 @@ app.get("/quality", requireLogin,async (req, res) => {
           i.responded,
           i.Attachments,
           i.DepartmentID,
+          i.ImmediateAction,
           d.DepartmentName,
 
           q.ReviewedFlag,
@@ -246,7 +247,7 @@ app.get("/quality", requireLogin,async (req, res) => {
           i.IncidentID, 
           i.IncidentDate, 
           i.IncidentTime,
-          i.Location, 
+          i.Location,
           r.Name, 
           r.Title, 
           r.ReportDate, 
@@ -256,6 +257,7 @@ app.get("/quality", requireLogin,async (req, res) => {
           i.responded,
           i.Attachments,
           i.DepartmentID,
+          i.ImmediateAction,
           d.DepartmentName,
           q.ReviewedFlag,
           q.FeedbackDate,
@@ -316,6 +318,7 @@ app.get("/departments", requireLogin, async (req, res) => {
     const result = await pool.request().query(`
       SELECT DepartmentID, DepartmentName
       FROM Departments
+      WHERE DepartmentName <> 'Quality Mangement'
       ORDER BY DepartmentName
     `);
     res.json(result.recordset);
@@ -652,9 +655,6 @@ app.put('/quality/reviewed', async (req, res) => {
     else if (req.headers.authorization) {
       try {
         const token = req.headers.authorization.replace('Bearer ', '');
-        // If you're using JWT, decode it here to get user ID
-        // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        // currentUserId = decoded.userId;
         console.log("Token found but no JWT decode implemented");
       } catch (tokenError) {
         console.log("Token decode failed:", tokenError.message);
@@ -722,7 +722,6 @@ app.put('/quality/reviewed', async (req, res) => {
       });
     }
 
-    // Update the reviewed flag
     const updateResult = await pool
       .request()
       .input("IncidentID", sql.Int, parseInt(IncidentID))
@@ -732,9 +731,7 @@ app.put('/quality/reviewed', async (req, res) => {
       .query(`
         UPDATE QualityReviews 
         SET ReviewedFlag = 1,
-            ReviewedBy = @ReviewedBy,
             ReviewedDate = @ReviewedDate,
-            QualityID = @QualityID
         WHERE IncidentID = @IncidentID
       `);
 
