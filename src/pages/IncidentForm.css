@@ -15,7 +15,7 @@ body {
 }
 
 header {
-  background-color: #2b6cb0;
+  background-color:  #3b98c0;
   color: white;
   padding: 15px 25px;
   display: flex;
@@ -33,7 +33,7 @@ header img {
 }
 
 .incident-container h2 {
-  color: #2169b6;
+  color:  #368fb5;
   margin-top: 30px;
   margin-bottom: 15px;
 }
@@ -110,7 +110,7 @@ header img {
 
 .incident-container button {
   width: 100%;
-  background-color: #007bff;
+  background-color: #3589ad;
   color: white;
   font-size: 16px;
   padding: 14px;

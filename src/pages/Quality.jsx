@@ -283,102 +283,102 @@ openUpdateModal = (incident) => {
     }));
   };
 
-handleUpdateSubmit = (e) => {
-  e.preventDefault();
-  const { selectedIncident, categorization, type, riskScoring, effectiveness,qualitySpecialistName } = this.state;
+  handleUpdateSubmit = (e) => {
+    e.preventDefault();
+    const { selectedIncident, categorization, type, riskScoring, effectiveness,qualitySpecialistName } = this.state;
 
-  if (!selectedIncident?.IncidentID) {
-    alert("IncidentID is missing!");
-    return;
-  }
+    if (!selectedIncident?.IncidentID) {
+      alert("IncidentID is missing!");
+      return;
+    }
 
-  // Validate required fields
-  if (!categorization.trim()) {
-    alert("Please provide a categorization.");
-    return;
-  }
+    // Validate required fields
+    if (!categorization.trim()) {
+      alert("Please provide a categorization.");
+      return;
+    }
 
-  if (!type || type.length === 0) {
-    alert("Please select at least one type.");
-    return;
-  }
+    if (!type || type.length === 0) {
+      alert("Please select at least one type.");
+      return;
+    }
 
-  if (!riskScoring) {
-    alert("Please select a risk scoring.");
-    return;
-  }
+    if (!riskScoring) {
+      alert("Please select a risk scoring.");
+      return;
+    }
 
-  if (!effectiveness) {
-    alert("Please select effectiveness review.");
-    return;
-  }
-  const token = localStorage.getItem("token");
+    if (!effectiveness) {
+      alert("Please select effectiveness review.");
+      return;
+    }
+    const token = localStorage.getItem("token");
 
-  // Submit quality feedback
-  fetch("/quality-feedback", {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}` // Add authorization header
-    },
-    credentials: "include", // Add credentials
-    body: JSON.stringify({
-      incidentId: selectedIncident.IncidentID,
-      type: type.join(", "),
-      categorization,
-      riskScoring,
-      effectiveness,
-      qualitySpecialistName,
+    // Submit quality feedback
+    fetch("/quality-feedback", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}` // Add authorization header
+      },
+      credentials: "include", 
+      body: JSON.stringify({
+        incidentId: selectedIncident.IncidentID,
+        type: type.join(", "),
+        categorization,
+        riskScoring,
+        effectiveness,
+        qualitySpecialistName,
+      })
     })
-  })
-  .then(res => {
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-    return res.json();
-  })
-  .then(data => {
-    if (data.status === "success") {
-      alert("Feedback submitted successfully!");
-      
-      // Update local state so "Done" button shows instead of "Add Feedback"
-      this.setState(prevState => {
-        const updatedIncidents = prevState.incidents.map(inc =>
-          inc.IncidentID === selectedIncident.IncidentID
-          ? {
-              ...inc,
-              feedbackFlag: "true",
-              categorization,
-              type,
-              riskScoring,
-              effectiveness,
-              qualitySpecialistName
-            } 
-          : inc
-        );
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data.status === "success") {
+        alert("Feedback submitted successfully!");
         
-        return {
-          incidents: updatedIncidents,
-          filteredIncidents: updatedIncidents,
-          showUpdateModal: false,
-          selectedIncident: null,
-          // Reset form fields
-          categorization: "",
-          type: [],
-          riskScoring: "",
-          effectiveness: "",
-          qualitySpecialistName: ""
-        };
-      });
-    } else {
-      alert("Failed to save feedback: " + (data.message || "Unknown error"));
-    }
-  })
-  .catch(err => {
-    console.error("Error submitting feedback:", err);
-    alert("Failed to save feedback: " + err.message);
-  });
-};
+        // Update local state so "Done" button shows instead of "Add Feedback"
+        this.setState(prevState => {
+          const updatedIncidents = prevState.incidents.map(inc =>
+            inc.IncidentID === selectedIncident.IncidentID
+            ? {
+                ...inc,
+                feedbackFlag: "true",
+                categorization,
+                type,
+                riskScoring,
+                effectiveness,
+                qualitySpecialistName
+              } 
+            : inc
+          );
+          
+          return {
+            incidents: updatedIncidents,
+            filteredIncidents: updatedIncidents,
+            showUpdateModal: false,
+            selectedIncident: null,
+            // Reset form fields
+            categorization: "",
+            type: [],
+            riskScoring: "",
+            effectiveness: "",
+            qualitySpecialistName: ""
+          };
+        });
+      } else {
+        alert("Failed to save feedback: " + (data.message || "Unknown error"));
+      }
+    })
+    .catch(err => {
+      console.error("Error submitting feedback:", err);
+      alert("Failed to save feedback: " + err.message);
+    });
+  };
 
 
    /* Update Quality Feedback */
@@ -634,6 +634,7 @@ handleUpdateSubmit = (e) => {
               >
                 {selectedIncident.Attachments}
               </a>
+
             </p>
 
               )}
@@ -729,7 +730,16 @@ handleUpdateSubmit = (e) => {
                   <p><strong>Risk Scoring:</strong> {selectedIncident.riskScoring || "—"}</p>
                   <p><strong>Effectiveness:</strong> {selectedIncident.effectiveness || "—"}</p>
                   <p><strong>Quality Specialist Name:</strong> {selectedIncident.qualitySpecialistName|| "—"}</p>
-
+                  <p>
+                    <strong>Feedback Date:</strong>{" "}
+                    {selectedIncident.FeedbackDate
+                      ? new Date(selectedIncident.FeedbackDate).toLocaleDateString("en-GB") 
+                      : "—"}
+                  </p>
+                  <p><strong>Reviewed By Manager:</strong><span className={selectedIncident.ReviewedFlag === "Yes" ? "status-Yes" : "status-No"}>
+                        {selectedIncident.ReviewedFlag === "Yes" ? "Yes" : "No"}
+                      </span>
+                    </p>
                   </div>
                 </div>
               </>

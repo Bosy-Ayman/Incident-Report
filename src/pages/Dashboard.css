@@ -72,7 +72,7 @@ body {
 
 
 .dashboard-container .bar-chart-1 {
-  grid-column: 1/2; /*left col*/
+  grid-column: 1/2; 
   grid-row:1/2;
 }
 

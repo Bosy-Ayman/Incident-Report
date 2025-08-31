@@ -21,56 +21,108 @@ export default class Departments extends Component {
     };
   }
 
-async componentDidMount() {
-  const token = localStorage.getItem("authToken");
 
-  // Get departmentId from localStorage as fallback, or from URL
-  const urlParts = window.location.pathname.split("/");
-  const departmentId = localStorage.getItem("departmentId") || urlParts[urlParts.length - 1];
+  async componentDidMount() {
+    const token = localStorage.getItem("authToken");
 
-  // Set department name from sessionStorage if exists
-  const savedDeptName = sessionStorage.getItem("DepartmentName") || `Department ${departmentId}`;
-  this.setState({ departmentName: savedDeptName });
+    // Get departmentId from localStorage as fallback, or from URL
+    const urlParts = window.location.pathname.split("/");
+    const departmentId = localStorage.getItem("departmentId") || urlParts[urlParts.length - 1];
 
-  try {
-    // 1️⃣ Fetch incidents for this department
-    const res = await fetch(`/departments/${departmentId}`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(`Server error: ${res.status}`);
-    }
-
-    // 2️⃣ Fetch quality responses (feedback + department responses)
-    const res2 = await fetch(`/quality`, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-    const qualityData = await res2.json();
-
-    // 3️⃣ Merge data if both responses are valid
-    if (data.status === "success" && Array.isArray(data.data) &&
-        qualityData.status === "success" && Array.isArray(qualityData.data)) {
-      
-      const merged = data.data.map((incident) => {
-        const qMatch = qualityData.data.find(q => q.IncidentID === incident.IncidentID);
-        return { ...incident, ...qMatch };
-      });
-
-      this.setState({
-        incidents: merged,
-        filteredIncidents: merged,
-        departmentName: merged[0]?.DepartmentName || savedDeptName
-      });
-    }
-  } catch (err) {
-    console.error("Error loading incidents/quality responses:", err);
-    // fallback if fetch fails
+    // Set department name from sessionStorage if exists
+    const savedDeptName = sessionStorage.getItem("DepartmentName") || `Department ${departmentId}`;
     this.setState({ departmentName: savedDeptName });
-  }
-}
 
+    try {
+      // Fetch incidents for this department
+      const res = await fetch(`/departments/${departmentId}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+
+      // Fetch quality responses (feedback + department responses)
+      const res2 = await fetch(`/quality`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const qualityData = await res2.json();
+
+      // Merge data if both responses are valid
+      if (data.status === "success" && Array.isArray(data.data) &&
+          qualityData.status === "success" && Array.isArray(qualityData.data)) {
+        
+        // Transform and merge the data
+        const transformedIncidents = data.data.map((incident) => {
+          // Find matching quality data
+          const qMatch = qualityData.data.find(q => q.IncidentID === incident.IncidentID);
+          
+          return {
+            ...incident,
+            FeedbackType: incident.Type,
+            FeedbackCategorization: incident.FeedbackCategorization,
+            FeedbackRiskScoring: incident.FeedbackRiskScoring,
+            FeedbackEffectiveness: incident.FeedbackEffectiveness,
+            FeedbackDate: incident.ResponseDate,
+            QualitySpecialistName: qMatch?.QualitySpecialistName || "—",
+            ReviewedFlag: incident.ReviewedFlag === false || incident.ReviewedFlag === 0 ? "No" 
+                  : incident.ReviewedFlag === true || incident.ReviewedFlag === 1 ? "Yes" 
+                  : "—",
+
+            // Create Response array structure from flattened data
+           Response: incident.Reason || incident.CorrectiveAction ? [{
+            ResponseDate: incident.ResponseDate,
+            DueDate: incident.DueDate,
+            Reason: incident.Reason,
+            CorrectiveAction: incident.CorrectiveAction,
+            DepartmentName: incident.DepartmentName
+          }] : [],
+
+            
+            // Handle ResponseID for updates
+            ResponseID: incident.ResponseID || null
+          };
+        });
+
+        this.setState({
+          incidents: transformedIncidents,
+          filteredIncidents: transformedIncidents,
+          departmentName: transformedIncidents[0]?.DepartmentName || savedDeptName
+        });
+      } else if (data.status === "success" && Array.isArray(data.data)) {
+        // Fallback if quality data fails - use department data only
+        const transformedIncidents = data.data.map((incident) => ({
+          ...incident,
+          FeedbackType: incident.Type,
+          FeedbackCategorization: incident.FeedbackCategorization,
+          FeedbackRiskScoring: incident.FeedbackRiskScoring,
+          FeedbackEffectiveness: incident.FeedbackEffectiveness,
+          FeedbackDate: incident.ResponseDate,
+          QualitySpecialistName: "—",
+          Response: incident.Reason || incident.CorrectiveAction ? [{
+            ResponseDate: incident.ResponseDate,
+            DueDate: incident.DueDate,
+            Reason: incident.Reason,
+            CorrectiveAction: incident.CorrectiveAction,
+            DepartmentName: incident.DepartmentName
+          }] : [],
+          ResponseID: incident.ResponseID || null
+        }));
+
+        this.setState({
+          incidents: transformedIncidents,
+          filteredIncidents: transformedIncidents,
+          departmentName: transformedIncidents[0]?.DepartmentName || savedDeptName
+        });
+      }
+    } catch (err) {
+      console.error("Error loading incidents:", err);
+      // fallback if fetch fails
+      this.setState({ departmentName: savedDeptName });
+    }
+  }
 
 
   openDetailsModal = (incident) => this.setState({
@@ -359,10 +411,22 @@ async componentDidMount() {
                 <div className="section">
                   <h3>Quality Manager Feedback</h3>
                   <div className="grid-2">
-                    <p><strong>Categorization:</strong> {selectedIncident.QualityCategorization || "—"}</p>
-                    <p><strong>Type:</strong> {selectedIncident.QualityType || "—"}</p>
-                    <p><strong>Risk Scoring:</strong> {selectedIncident.QualityRiskScoring || "—"}</p>
-                    <p><strong>Effectiveness:</strong> {selectedIncident.QualityEffectiveness || "—"}</p>
+                    <p><strong>Categorization:</strong> {selectedIncident.FeedbackCategorization || "—"}</p>
+                    <p><strong>Type:</strong> {selectedIncident.FeedbackType || "—"}</p>
+                    <p><strong>Risk Scoring:</strong> {selectedIncident.FeedbackRiskScoring || "—"}</p>
+                    <p><strong>Effectiveness:</strong> {selectedIncident.FeedbackEffectiveness || "—"}</p>
+                    <p><strong>Quality Specialist Name:</strong> {selectedIncident.QualitySpecialistName|| "—"}</p>
+                    <p>
+                      <strong>Feedback Date:</strong>{" "}
+                      {selectedIncident.FeedbackDate
+                        ? new Date(selectedIncident.FeedbackDate).toLocaleDateString("en-GB")
+                        : "—"}
+                    </p>
+                    <p><strong>Reviewed By Manager:</strong>   <span className={selectedIncident.ReviewedFlag === "Yes" ? "status-Yes" : "status-No"}>
+                        {selectedIncident.ReviewedFlag === "Yes" ? "Yes" : "No"}
+                      </span>
+                    </p>
+
                   </div>
                 </div>
               </>

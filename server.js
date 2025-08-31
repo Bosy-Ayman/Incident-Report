@@ -21,7 +21,7 @@ app.use(
     secret: "mySuperSecret123!",
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }, // false for localhost
+    cookie: { secure: false },// false for localhost
   })
 );
 const dbConfig = {
@@ -186,7 +186,7 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
 
 // ------------------------------------------- UPDATE INCIDENT FOR QUALITY -------------------------------------------
 
-app.get("/quality", async (req, res) => {
+app.get("/quality", requireLogin,async (req, res) => {
   console.log("Quality endpoint hit, user:", req.session.user);
   let pool;
   try {
@@ -208,8 +208,10 @@ app.get("/quality", async (req, res) => {
           i.Attachments,
           i.DepartmentID,
           d.DepartmentName,
-          -- Feedback fields
+
           q.ReviewedFlag,
+          q.feedbackdate AS FeedbackDate,
+          q.ReviewedDate,
           MAX(q.Type) AS FeedbackType,
           MAX(q.Categorization) AS FeedbackCategorization,
           MAX(q.RiskScoring) AS FeedbackRiskScoring,
@@ -218,7 +220,6 @@ app.get("/quality", async (req, res) => {
           MAX(u.UserName) AS QualitySpecialistName,
           CASE WHEN MAX(q.FeedbackFlag) = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
 
-          -- Gather all responses per incident as JSON
           (
             SELECT dr.ResponseID, dr.Reason, dr.CorrectiveAction, dr.ResponseDate, dr.DueDate, d2.DepartmentName
             FROM DepartmentResponse dr
@@ -256,7 +257,9 @@ app.get("/quality", async (req, res) => {
           i.Attachments,
           i.DepartmentID,
           d.DepartmentName,
-          q.ReviewedFlag
+          q.ReviewedFlag,
+          q.FeedbackDate,
+          q.ReviewedDate
       ORDER BY i.IncidentID DESC;
     `;
 
@@ -481,7 +484,7 @@ app.post("/quality-feedback", requireLogin, requireQualityDepartment, async (req
 
 
 //------------------------------ GET incidents for a specific department-------------------------------
-app.get("/departments/:departmentId", requireLogin, requireDepartmentAccess, async (req, res) => {
+app.get("/departments/:departmentId",async (req, res) => {
   const { departmentId } = req.params;
   let pool;
   try {
@@ -503,56 +506,51 @@ app.get("/departments/:departmentId", requireLogin, requireDepartmentAccess, asy
             i.responded,
             i.Attachments,
             i.DepartmentID,
-            d.DepartmentName,
-
+            d.DepartmentName, 
+            q.ReviewedFlag,
+            MAX(CAST(dr.Reason AS NVARCHAR(MAX))) AS Reason,
+            MAX(CAST(dr.CorrectiveAction AS NVARCHAR(MAX))) AS CorrectiveAction,
             MAX(q.Type) AS Type,
             MAX(q.Categorization) AS FeedbackCategorization,
             MAX(q.RiskScoring) AS FeedbackRiskScoring,
             MAX(q.EffectivenessResult) AS FeedbackEffectiveness,
-            CASE WHEN MAX(q.FeedbackFlag) = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
-
+            CASE WHEN MAX(CAST(q.ReviewedFlag AS INT)) = 1 THEN 1 ELSE 0 END AS FeedbackFlag, 
             MAX(dr.DueDate) AS DueDate,
-            MAX(dr.ResponseDate) AS ResponseDate,
-
+            MAX(dr.ResponseDate) AS ResponseDate, 
             STUFF((
               SELECT ', ' + ai2.Name
               FROM AffectedIndividuals ai2
               WHERE ai2.IncidentID = i.IncidentID
               FOR XML PATH(''), TYPE
-            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedIndividualsNames,
-
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedIndividualsNames, 
             STUFF((
               SELECT ', ' + ai2.Type + ': ' + ai2.Name
               FROM AffectedIndividuals ai2
               WHERE ai2.IncidentID = i.IncidentID
               FOR XML PATH(''), TYPE
-            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedList
-
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS AffectedList 
         FROM Incidents i
         JOIN Reporters r ON i.ReporterID = r.ReporterID
         LEFT JOIN Departments d ON i.DepartmentID = d.DepartmentID
         LEFT JOIN QualityReviews q ON q.IncidentID = i.IncidentID
         LEFT JOIN DepartmentResponse dr ON dr.IncidentID = i.IncidentID
-
-        WHERE i.DepartmentID = @departmentId  
-
+        WHERE i.DepartmentID = @departmentId
         GROUP BY 
-            i.IncidentID, 
-            i.IncidentDate, 
+            i.IncidentID,
+            i.IncidentDate,
             i.IncidentTime,
-            i.Location, 
-            r.Name, 
-            r.Title, 
-            r.ReportDate, 
+            i.Location,
+            r.Name,
+            r.Title,
+            r.ReportDate,
             r.ReportTime,
-            i.Description, 
-            i.ImmediateAction,
+            i.Description,
             i.status,
             i.responded,
             i.Attachments,
             i.DepartmentID,
-            d.DepartmentName
-
+            d.DepartmentName,
+            q.ReviewedFlag
         ORDER BY i.IncidentID DESC;
       `);
     res.json({ status: "success", data: result.recordset });
@@ -563,7 +561,6 @@ app.get("/departments/:departmentId", requireLogin, requireDepartmentAccess, asy
     if (pool) await pool.close();
   }
 });
-
 // ----------------------------------------- login -------------------------------------
 app.post("/login", async (req, res) => {
   const { UserID, Password } = req.body || {}; 
