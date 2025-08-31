@@ -211,6 +211,7 @@ export default class Departments extends Component {
     });
   };
 
+
   render() {
     const { filteredIncidents, filters, showDetailsModal, showUpdateModal, selectedIncident } = this.state;
 

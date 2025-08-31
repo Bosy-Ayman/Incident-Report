@@ -186,7 +186,7 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
 
 // ------------------------------------------- UPDATE INCIDENT FOR QUALITY -------------------------------------------
 
-app.get("/quality", requireLogin,async (req, res) => {
+app.get("/quality",async (req, res) => {
   console.log("Quality endpoint hit, user:", req.session.user);
   let pool;
   try {
@@ -485,7 +485,6 @@ app.post("/quality-feedback", requireLogin, requireQualityDepartment, async (req
   }
 });
 
-
 //------------------------------ GET incidents for a specific department-------------------------------
 app.get("/departments/:departmentId",async (req, res) => {
   const { departmentId } = req.params;
@@ -512,12 +511,13 @@ app.get("/departments/:departmentId",async (req, res) => {
             d.DepartmentName, 
             q.ReviewedFlag,
             MAX(CAST(dr.Reason AS NVARCHAR(MAX))) AS Reason,
+            
             MAX(CAST(dr.CorrectiveAction AS NVARCHAR(MAX))) AS CorrectiveAction,
             MAX(q.Type) AS Type,
             MAX(q.Categorization) AS FeedbackCategorization,
             MAX(q.RiskScoring) AS FeedbackRiskScoring,
             MAX(q.EffectivenessResult) AS FeedbackEffectiveness,
-            CASE WHEN MAX(CAST(q.ReviewedFlag AS INT)) = 1 THEN 1 ELSE 0 END AS FeedbackFlag, 
+            CASE WHEN MAX(q.ReviewedFlag) = 'true' THEN 1 ELSE 0 END AS ReviewedFlag,
             MAX(dr.DueDate) AS DueDate,
             MAX(dr.ResponseDate) AS ResponseDate, 
             STUFF((
@@ -564,6 +564,7 @@ app.get("/departments/:departmentId",async (req, res) => {
     if (pool) await pool.close();
   }
 });
+
 // ----------------------------------------- login -------------------------------------
 app.post("/login", async (req, res) => {
   const { UserID, Password } = req.body || {}; 
@@ -616,183 +617,70 @@ app.post("/login", async (req, res) => {
   }
 });
 //------------------------------------Modify reviewed flag by the manager-------------
-app.put('/quality/reviewed', async (req, res) => {
+app.post("/review-incident", requireLogin, async (req, res) => {
+  const { incidentId, reviewed } = req.body;
+  console.log("Review endpoint hit, user:", req.session.user);
+  console.log("Request body:", req.body);
+
+  if (!incidentId) {
+    return res.status(400).json({ status: "error", message: "Missing incident ID" });
+  }
+
+  // Check if user has permission (only user 1033 can mark as reviewed)
+  if (req.session.user.id !== 1033) {
+    return res.status(403).json({ status: "error", message: "Unauthorized to review incidents" });
+  }
+
   let pool;
   try {
-    console.log("Received request body:", req.body);
-    console.log("Session user:", req.session?.user);
-    console.log("Request headers:", req.headers);
-
-    const { IncidentID, reviewedBy, userId, qualityId } = req.body;
-    
-    // Validate required fields
-    if (!IncidentID) {
-      console.log("Missing IncidentID");
-      return res.status(400).json({ 
-        status: "error", 
-        message: "IncidentID is required" 
-      });
-    }
-
-    // Get current user ID from multiple sources
-    let currentUserId = null;
-    
-    // Try to get from session first
-    if (req.session?.user?.id) {
-      currentUserId = req.session.user.id;
-      console.log("Got user ID from session:", currentUserId);
-    }
-    // Try from request body
-    else if (userId) {
-      currentUserId = parseInt(userId);
-      console.log("Got user ID from request body:", currentUserId);
-    }
-    else if (qualityId) {
-      currentUserId = parseInt(qualityId);
-      console.log("Got quality ID from request body:", currentUserId);
-    }
-    // Try to extract from JWT token if using token-based auth
-    else if (req.headers.authorization) {
-      try {
-        const token = req.headers.authorization.replace('Bearer ', '');
-        console.log("Token found but no JWT decode implemented");
-      } catch (tokenError) {
-        console.log("Token decode failed:", tokenError.message);
-      }
-    }
-
-    console.log("Final current user ID:", currentUserId);
-
-    // Check if we have a user ID
-    if (!currentUserId) {
-      console.log("No user ID found in session, body, or token");
-      return res.status(401).json({ 
-        status: "error", 
-        message: "User not authenticated" 
-      });
-    }
-
-    // Check if user is authorized (must be UserID = 1033)
-    if (parseInt(currentUserId) !== 1033) {
-      console.log("Unauthorized user attempting to review:", currentUserId);
-      return res.status(403).json({ 
-        status: "error", 
-        message: `Unauthorized: Only quality managers (ID: 1033) can review incidents. Your ID: ${currentUserId}` 
-      });
-    }
-
-    console.log("User authorized as quality manager (1033)");
-
     pool = await sql.connect(dbConfig);
     
-    // First check if the incident exists and has feedback
-    const checkResult = await pool
-      .request()
-      .input("IncidentID", sql.Int, parseInt(IncidentID))
+    // First check if QualityReviews record exists
+    const existingReview = await pool.request()
+      .input("incidentId", sql.Int, incidentId)
       .query(`
-        SELECT IncidentID, FeedbackFlag, ReviewedFlag
-        FROM QualityReviews 
-        WHERE IncidentID = @IncidentID
+        SELECT * FROM QualityReviews 
+        WHERE IncidentID = @incidentId
       `);
 
-    if (checkResult.recordset.length === 0) {
-      console.log("Incident not found in QualityReviews:", IncidentID);
-      return res.status(404).json({ 
-        status: "error", 
-        message: "Incident not found in quality reviews" 
-      });
+    const reviewedFlag = reviewed ? "true" : "false";
+    const reviewedDate = reviewed ? new Date() : null;
+
+    if (existingReview.recordset.length > 0) {
+      // UPDATE existing record
+      await pool.request()
+        .input("incidentId", sql.Int, incidentId)
+        .input("reviewed", sql.VarChar, reviewedFlag)
+        .input("reviewedDate", sql.DateTime, reviewedDate)
+        .query(`
+          UPDATE QualityReviews
+          SET ReviewedFlag = @reviewed,
+              ReviewedDate = @reviewedDate
+          WHERE IncidentID = @incidentId
+        `);
+    } else {
+      // INSERT new record
+      await pool.request()
+        .input("incidentId", sql.Int, incidentId)
+        .input("reviewed", sql.VarChar, reviewedFlag)
+        .input("reviewedDate", sql.DateTime, reviewedDate)
+        .input("qualityId", sql.Int, req.session.user.id)
+        .query(`
+          INSERT INTO QualityReviews (IncidentID, ReviewedFlag, ReviewedDate, QualityID)
+          VALUES (@incidentId, @reviewed, @reviewedDate, @qualityId)
+        `);
     }
 
-    const incident = checkResult.recordset[0];
-    console.log("Found incident:", incident);
-
-    // Check if feedback exists
-    if (incident.FeedbackFlag !== 1) {
-      return res.status(400).json({ 
-        status: "error", 
-        message: "Cannot review incident without feedback" 
-      });
-    }
-
-    // Check if already reviewed
-    if (incident.ReviewedFlag === 1) {
-      return res.status(400).json({ 
-        status: "error", 
-        message: "Incident has already been reviewed" 
-      });
-    }
-
-    const updateResult = await pool
-      .request()
-      .input("IncidentID", sql.Int, parseInt(IncidentID))
-      .input("ReviewedBy", sql.VarChar(100), reviewedBy || "Quality Manager")
-      .input("ReviewedDate", sql.DateTime, new Date())
-      .input("QualityID", sql.Int, parseInt(currentUserId))
-      .query(`
-        UPDATE QualityReviews 
-        SET ReviewedFlag = 1,
-            ReviewedDate = @ReviewedDate,
-        WHERE IncidentID = @IncidentID
-      `);
-
-    console.log("Update result rows affected:", updateResult.rowsAffected);
-
-    if (updateResult.rowsAffected[0] === 0) {
-      return res.status(404).json({ 
-        status: "error", 
-        message: "Failed to update incident review status" 
-      });
-    }
-
-    console.log("Successfully marked incident as reviewed");
-
-    return res.json({
-      status: "success",
-      message: "Incident marked as reviewed successfully",
-      incidentID: IncidentID,
-      reviewedBy: reviewedBy || "Quality Manager",
-      qualityManagerId: currentUserId
-    });
-
+    res.json({ status: "success", message: "Incident review updated" });
   } catch (err) {
-    console.error("Quality review error:", err);
-    console.error("Error stack:", err.stack);
-    return res.status(500).json({ 
-      status: "error", 
-      message: "Internal server error: " + err.message 
-    });
+    console.error("Error updating review:", err);
+    res.status(500).json({ status: "error", message: "Database update failed" });
   } finally {
     if (pool) await pool.close();
   }
 });
 
-// Optional: Add a helper endpoint to check current user info
-app.get('/current-user', async (req, res) => {
-  try {
-    console.log("Current user request - Session:", req.session?.user);
-    
-    if (!req.session?.user) {
-      return res.status(401).json({ 
-        status: "error", 
-        message: "Not authenticated" 
-      });
-    }
 
-    return res.json({
-      status: "success",
-      userId: req.session.user.id,
-      userName: req.session.user.name,
-      departmentId: req.session.user.departmentId,
-      isQualityManager: req.session.user.id === 1033
-    });
-  } catch (err) {
-    console.error("Current user error:", err);
-    return res.status(500).json({ 
-      status: "error", 
-      message: err.message 
-    });
-  }
-});
 //--------------------------------------CLOSE INCIDENT -------------------------------
 app.put("/quality/close-incident", requireLogin, requireQualityDepartment, async (req, res) => {
   const { IncidentID } = req.body; 

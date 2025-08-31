@@ -175,12 +175,12 @@
   min-height: 80px;
 }
 /*--------------------- Responded by department flag -------------------------*/
-.status-Yes {
-  color: #38a169;
+.quality-dashboard .status-Yes {
+  color: #38a169 !important;
   font-weight: bold;
 }
 
-.status-No {
+.quality-dashboard .status-No {
   color: #e6504e;
   font-weight: bold;
 }
@@ -257,6 +257,18 @@
 }
 .quality-dashboard .details-btn {
   background-color: #4587a3 ;
+  color: white;
+  border: none;
+  padding: 7px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  margin-top: 5px;
+  margin-left: "10px";
+}
+.quality-dashboard .reviewed-button{
+  background-color: #a34545 ;
   color: white;
   border: none;
   padding: 7px 15px;

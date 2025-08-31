@@ -36,8 +36,17 @@ export default function Login() {
 
       if (data.status === "success") {
         const deptId = data.departmentId || data.departmentID;
+        
+        // Store ALL user information in localStorage
+        localStorage.setItem("userId", data.userId); // THIS WAS MISSING!
+        localStorage.setItem("userName", data.userName || "");
         localStorage.setItem("departmentId", deptId);
-        sessionStorage.setItem("departmentName", data.department || "");
+        localStorage.setItem("departmentName", data.departmentName || "");
+        
+        // Keep the sessionStorage for compatibility
+        sessionStorage.setItem("departmentName", data.departmentName || "");
+
+        console.log("Login successful - stored userId:", data.userId); // Debug log
 
         setMessage("Login successful");
         setMessageType("success");

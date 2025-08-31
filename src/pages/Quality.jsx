@@ -10,7 +10,6 @@ export default class Quality extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      
       incidents: [],
       departments: [],
       incidentResponses: [],
@@ -26,21 +25,35 @@ export default class Quality extends Component {
       riskScoring: "",
       effectiveness: "",
       feedbackFlag: "",
+      ReviewedFlag: "",
       showCloseModal: false,
+      currentUserId: null, 
       filters:{
         statusFilter: "all",
         responseFilter: "all",
         dateFrom: "",
         dateTo: "",
-    
       }
     };
-
   }
 
   async componentDidMount() {
     try {
       const token = localStorage.getItem("token");
+      
+      // Get current user ID from localStorage
+      let currentUserId = localStorage.getItem("userId") || 
+                          localStorage.getItem("userID") || 
+                          localStorage.getItem("UserID");
+      
+      // Convert to number if it's a string
+      if (currentUserId) {
+        currentUserId = parseInt(currentUserId);
+      }
+      
+      console.log("Debug - currentUserId from localStorage:", currentUserId);
+      
+      this.setState({ currentUserId });
 
       // Fetch incidents and departments in parallel
       const [incidentsRes, departmentsRes] = await Promise.all([
@@ -49,9 +62,6 @@ export default class Quality extends Component {
           credentials: "include" 
         }),
         fetch("/departments", { 
-          headers: { "Authorization": `Bearer ${token}` }, 
-          credentials: "include" 
-        }),fetch("/quality-feedback", { 
           headers: { "Authorization": `Bearer ${token}` }, 
           credentials: "include" 
         })
@@ -74,9 +84,7 @@ export default class Quality extends Component {
                       inc.FeedbackType || 
                       inc.FeedbackRiskScoring || 
                       inc.FeedbackEffectiveness) ? "true" : "false",
-        // ADD THIS LINE for reviewed flag
-        reviewedFlag: inc.ReviewedFlag === 1 ? "true" : "false",
-        categorization: inc.FeedbackCategorization || "",
+        reviewedFlag: (inc.ReviewedFlag === "true" || inc.ReviewedFlag === "Yes") ? "true" : "false",
         type: inc.FeedbackType ? inc.FeedbackType.split(", ") : [],
         riskScoring: inc.FeedbackRiskScoring || "",
         effectiveness: inc.FeedbackEffectiveness || "",
@@ -96,65 +104,57 @@ export default class Quality extends Component {
     }
   }
 
-handleReviewedByManager = () => {
-  const { selectedIncident } = this.state;
-  if (!selectedIncident) {
-    console.log("No selected incident");
-    return;
-  }
+  handleReviewedByManager = () => {
+    const { selectedIncident, currentUserId } = this.state;
+    if (!selectedIncident) return;
 
-  const token = localStorage.getItem("token");
-  const requestBody = { 
-    IncidentID: selectedIncident.IncidentID,
-    reviewedBy: localStorage.getItem("userName") || "Quality Manager"
+    // Check if current user is authorized (user ID 1033)
+    if (currentUserId !== 1033) {
+      alert("You are not authorized to review incidents.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    fetch("/review-incident", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        incidentId: selectedIncident.IncidentID,
+        reviewed: true
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "success") {
+        alert("Incident marked as reviewed successfully!");
+        this.setState(prevState => {
+          const updatedIncidents = prevState.incidents.map(inc =>
+            inc.IncidentID === selectedIncident.IncidentID
+              ? { ...inc, reviewedFlag: "true" }
+              : inc
+          );
+          return { 
+            incidents: updatedIncidents, 
+            filteredIncidents: updatedIncidents,
+            showDetailsModal: false // Close modal after successful review
+          };
+        });
+      } else {
+        alert("Failed to mark as reviewed: " + (data.message || "Unknown error"));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Failed to mark as reviewed: " + err.message);
+    });
   };
-  
-  console.log("Sending review request:", requestBody);
-  
-  fetch('/quality/reviewed', {
-    method: 'PUT',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    credentials: 'include',
-    body: JSON.stringify(requestBody)
-  })
-  .then(res => {
-    console.log("Response status:", res.status);
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`);
-    }
-    return res.json();
-  })
-  .then((data) => {
-    console.log("Response data:", data);
-    if (data.status === "success") {
-      alert("Incident marked as reviewed successfully!");
-      
-      // Update local state to show "Done" button
-      this.setState(prevState => {
-        const updatedIncidents = prevState.incidents.map(inc =>
-          inc.IncidentID === selectedIncident.IncidentID
-          ? { ...inc, reviewedFlag: "true" }
-          : inc
-        );
-        
-        return {
-          incidents: updatedIncidents,
-          filteredIncidents: updatedIncidents
-        };
-      });
-    } else {
-      alert("Failed to mark as reviewed: " + (data.message || "Unknown error"));
-    }
-  })
-  .catch(err => {
-    console.error("Review request failed:", err);
-    alert("Failed to mark as reviewed: " + err.message);
-  });
-};
-   /*Details Modal*/
+
+  /*Details Modal*/
   openDetailsModal = (incident) => {
     const responses = incident.Response || [];
   
@@ -167,7 +167,6 @@ handleReviewedByManager = () => {
       feedbackFlag: incident.feedbackFlag || "",
     };
 
-
     this.setState({
       showDetailsModal: true,
       selectedIncident: { ...incident, Response: responses, ...qualityData }
@@ -178,31 +177,31 @@ handleReviewedByManager = () => {
     this.setState({ showDetailsModal: false, selectedIncident: null });
   };
 
- 
-openUpdateModal = (incident) => {
-  // Auto-populate quality specialist name from login
-  const loggedInUserName = localStorage.getItem("userName") || "";
-  
-  const qualityData = {
-    categorization: incident.FeedbackCategorization || "",
-    type: incident.FeedbackType ? incident.FeedbackType.split(", ") : [],
-    riskScoring: incident.FeedbackRiskScoring || "",
-    effectiveness: incident.FeedbackEffectiveness || "",
-    qualitySpecialistName: incident.QualitySpecialistName,
-    feedbackFlag: incident.feedbackFlag || "",
+  openUpdateModal = (incident) => {
+    // Auto-populate quality specialist name from login
+    const loggedInUserName = localStorage.getItem("userName") || "";
+    
+    const qualityData = {
+      categorization: incident.FeedbackCategorization || "",
+      type: incident.FeedbackType ? incident.FeedbackType.split(", ") : [],
+      riskScoring: incident.FeedbackRiskScoring || "",
+      effectiveness: incident.FeedbackEffectiveness || "",
+      qualitySpecialistName: incident.QualitySpecialistName,
+      feedbackFlag: incident.feedbackFlag || "",
+    };
+
+    this.setState({
+      showUpdateModal: true,
+      selectedIncident: { ...incident, ...qualityData },
+      categorization: qualityData.categorization,
+      type: qualityData.type,
+      riskScoring: qualityData.riskScoring,
+      effectiveness: qualityData.effectiveness,
+      qualitySpecialistName: qualityData.qualitySpecialistName,
+      feedbackFlag: qualityData.feedbackFlag,
+    });
   };
 
-  this.setState({
-    showUpdateModal: true,
-    selectedIncident: { ...incident, ...qualityData },
-    categorization: qualityData.categorization,
-    type: qualityData.type,
-    riskScoring: qualityData.riskScoring,
-    effectiveness: qualityData.effectiveness,
-    qualitySpecialistName: qualityData.qualitySpecialistName,
-    feedbackFlag: qualityData.feedbackFlag,
-  });
-};
   /*Close Incident State*/
   confirmCloseIncident = () => {
     const { selectedIncident } = this.state;
@@ -212,12 +211,25 @@ openUpdateModal = (incident) => {
     fetch('/quality/close-incident', {
       method: 'PUT', 
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ IncidentID: selectedIncident.IncidentID })
     })
     .then(res => res.json())
     .then((data) => {
       if (data.status === "success") {
-        this.componentDidMount(); 
+        alert("Incident closed successfully!");
+        // Update local state instead of full refresh
+        this.setState(prevState => {
+          const updatedIncidents = prevState.incidents.map(inc =>
+            inc.IncidentID === selectedIncident.IncidentID
+              ? { ...inc, status: 'Done' }
+              : inc
+          );
+          return { 
+            incidents: updatedIncidents, 
+            filteredIncidents: updatedIncidents 
+          };
+        });
       } else {
         alert("Failed to close incident: " + data.message);
       }
@@ -231,7 +243,8 @@ openUpdateModal = (incident) => {
   closeUpdateModal= ()=> {
     this.setState({ 
       showUpdateModal: false,
-      selectedIncident: null });
+      selectedIncident: null 
+    });
   };
 
   /*Filter based on the status ,date ,and whether the department responded or not*/
@@ -273,6 +286,7 @@ openUpdateModal = (incident) => {
       }
     );
   };
+
   handleFilterChange=(e)=>{
     const {id,value} = e.target;
     this.setState((prev)=> ({
@@ -319,7 +333,7 @@ openUpdateModal = (incident) => {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}` // Add authorization header
+        "Authorization": `Bearer ${token}` 
       },
       credentials: "include", 
       body: JSON.stringify({
@@ -341,18 +355,19 @@ openUpdateModal = (incident) => {
       if (data.status === "success") {
         alert("Feedback submitted successfully!");
         
-        // Update local state so "Done" button shows instead of "Add Feedback"
+        // Update local state so correct button shows
         this.setState(prevState => {
           const updatedIncidents = prevState.incidents.map(inc =>
             inc.IncidentID === selectedIncident.IncidentID
             ? {
                 ...inc,
                 feedbackFlag: "true",
-                categorization,
-                type,
-                riskScoring,
-                effectiveness,
-                qualitySpecialistName
+                reviewedFlag: "false",   
+                FeedbackCategorization: categorization,
+                FeedbackType: type.join(", "),
+                FeedbackRiskScoring: riskScoring,
+                FeedbackEffectiveness: effectiveness,
+                QualitySpecialistName: qualitySpecialistName
               } 
             : inc
           );
@@ -381,8 +396,7 @@ openUpdateModal = (incident) => {
     });
   };
 
-
-   /* Update Quality Feedback */
+  /* Update Quality Feedback */
   handleCheckboxChange = (e) => {
     const { value, checked } = e.target;
     this.setState(prev => {
@@ -393,36 +407,113 @@ openUpdateModal = (incident) => {
   
   handleAssignDepartment = () => {
     const { selectedIncident, selectedDepartmentId } = this.state;
-    fetch("/responses",{ credentials: "include" })
-      .then(res => res.json())
-      .then(data => {
-        console.log("Responses fetched:", data); 
-        this.setState({ incidentResponses: Array.isArray(data) ? data : [] });
-      })
-    .catch(err => console.error(err));
-
+    
     fetch("/quality", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json"
       },
+      credentials: "include",
       body: JSON.stringify({
         incidentId: selectedIncident.IncidentID,
         departmentId: selectedDepartmentId
       })
     })
-      .then(res => res.json())
-      .then(() => {
-        this.componentDidMount();
-        this.setState({ showDetailsModal: false, selectedDepartmentId: "" });
-      })
-      .catch(err => console.error("Error assigning department:", err));
+    .then(res => res.json())
+    .then(() => {
+      // Update local state instead of full refresh
+      this.setState(prevState => {
+        const updatedIncidents = prevState.incidents.map(inc =>
+          inc.IncidentID === selectedIncident.IncidentID
+            ? { 
+                ...inc, 
+                status: 'Assigned',
+                DepartmentID: selectedDepartmentId,
+                DepartmentName: this.state.departments.find(d => d.DepartmentID == selectedDepartmentId)?.DepartmentName || inc.DepartmentName
+              }
+            : inc
+        );
+        return {
+          incidents: updatedIncidents,
+          filteredIncidents: updatedIncidents,
+          showDetailsModal: false, 
+          selectedDepartmentId: "" 
+        };
+      });
+    })
+    .catch(err => console.error("Error assigning department:", err));
   };
 
+  // Function to determine which button to show
+getActionButton = (incident) => {
+    const { currentUserId } = this.state;
+    
+    // If incident is already closed/done, don't show any action buttons
+    if (incident.status === "Done" || incident.status === "Closed") {
+      return null;
+    }
+    
+    // If no feedback has been added yet AND department has responded, show "Add Feedback" button
+    if (incident.feedbackFlag !== "true" && incident.responded === "Yes") {
+      return (
+        <button
+          className="update-btn"
+          onClick={() => this.openUpdateModal(incident)}
+          style={{ marginLeft: "10px" }}
+        >
+          Add Feedback
+        </button>
+      );
+    }
+    
+    // If feedback exists but not reviewed, show "Reviewed" button (only for user 1033)
+    if (incident.feedbackFlag === "true" && incident.reviewedFlag !== "true") {
+      // Make sure we're comparing the right types
+      if (currentUserId === 1033 || currentUserId === "1033") {
+        return (
+          <button
+            className="reviewed-button"
+            onClick={() => {
+              this.setState({ selectedIncident: incident }, () => {
+                this.handleReviewedByManager();
+              });
+            }}
+            style={{ marginLeft: "10px" }}
+          >
+            Reviewed
+          </button>
+        );
+      } else {
+        return (
+          <span style={{ marginLeft: "10px", fontStyle: "italic", color: "#666" }}>
+            Awaiting Review
+          </span>
+        );
+      }
+    }
+    
+    // If feedback exists and has been reviewed, show "Done" button (only if not already done)
+    if (incident.feedbackFlag === "true" && incident.reviewedFlag === "true" && incident.status !== "Done") {
+      return (
+        <button
+          className="close-button"
+          onClick={() => {
+            this.setState({ selectedIncident: incident }, () => {
+              this.confirmCloseIncident();
+            });
+          }}
+          style={{ marginLeft: "10px" }}
+        >
+          Done
+        </button>
+      );
+    }
+    
+    return null;
+  };
 
   render() {
     const {
-      
       showDetailsModal,
       showUpdateModal,
       selectedIncident,
@@ -431,7 +522,6 @@ openUpdateModal = (incident) => {
     } = this.state;
 
     return (
-      
       <div className="quality-dashboard">
           {/* Filters */}
           <div id="filters">
@@ -443,7 +533,6 @@ openUpdateModal = (incident) => {
             <option value="Pending">Pending Response</option> 
             <option value="Done">Closed</option>
             </select>
-
 
             <label htmlFor="responseFilter">Responded by Dept:</label>
             <select id="responseFilter" value={filters.responseFilter} onChange={this.handleFilterChange}>
@@ -517,55 +606,17 @@ openUpdateModal = (incident) => {
                   Details
                 </button>
 
-                {/* it Works Only when the incident is Pending */}
-                {incident.status === "Pending" && (
-                <>
-                  {incident.feedbackFlag === "true" ? (
-                    <button
-                      className="close-button"
-                      onClick={() => {
-                        this.setState({ selectedIncident: incident }, () => {
-                          this.confirmCloseIncident();
-                        });
-                      }}
-                      style={{ marginLeft: "10px" }}
-                    >
-                      Done
-                    </button>
-                    //if QualityID ==1033 then show Reviewed->in case it clicked on reviewed after that u can show Done
-                    //       <button
-                    //   className="reviewed-button"
-                    //   onClick={() => {
-                    //     this.setState({ selectedIncident: incident }, () => {
-                    //       this.ReviewedByManager();
-                    //     });
-                    //   }}
-                    //   style={{ marginLeft: "10px" }}
-                    // >
-                    //   Reviewed
-                    // </button>
-                    
-                  ) : (
-                    <button
-                      className="update-btn"
-                      onClick={() => this.openUpdateModal(incident)}
-                      style={{ marginLeft: "10px" }}
-                    >
-                      Add Feedback
-                    </button>
-                  )}
-                </>
-              )}
-
-
+                {/* Use the new function to determine which button to show */}
+                {this.getActionButton(incident)}
               </td>
             </tr>
           ))
               )}
             </tbody>
           </table>
-          {/* Details Modal */}
-        <div
+          
+          {/* Details Modal - keeping the existing modal code */}
+          <div
           className={`modal-bg ${showDetailsModal ? "active" : ""}`}
           onClick={this.closeDetailsModal}
           role="dialog"
@@ -635,12 +686,9 @@ openUpdateModal = (incident) => {
               >
                 {selectedIncident.Attachments}
               </a>
-
             </p>
-
               )}
             </div>
-
 
                 {/* Status & Assignment */}
                 <div className="section">
@@ -687,7 +735,6 @@ openUpdateModal = (incident) => {
                     </div>
                   </div>
                 )}
-
 
                 </div>
 
@@ -738,7 +785,7 @@ openUpdateModal = (incident) => {
                       : "—"}
                   </p>
                   <p><strong>Reviewed By Manager:</strong><span className={selectedIncident.ReviewedFlag === "Yes" ? "status-Yes" : "status-No"}>
-                        {selectedIncident.ReviewedFlag === "Yes" ? "Yes" : "No"}
+                        {selectedIncident.reviewedFlag === "true" ? "Yes" : "No"}
                       </span>
                     </p>
                   </div>
@@ -777,7 +824,6 @@ openUpdateModal = (incident) => {
                   placeholder=""
                 />
 
-
                 <h3>Type</h3>
                 <div className="checkbox-group">
                   {["Near Miss Events", "Adverse Events", "Significant Events", "Sentinel Events"].map((item) => (
@@ -811,7 +857,6 @@ openUpdateModal = (incident) => {
 
                 <h3>Corrective/Preventive Action Effectiveness Review</h3>
                 <div id="filters">
-
                 <select
                   value={this.state.effectiveness}
                   onChange={(e) => this.setState({ effectiveness: e.target.value })}
@@ -821,7 +866,6 @@ openUpdateModal = (incident) => {
                   <option value="Ineffective">Ineffective (Needs another action)</option>
                 </select>
                 </div>
-              
               </div>
               <button type="submit" className="btn-quality">
                 Submit Update
