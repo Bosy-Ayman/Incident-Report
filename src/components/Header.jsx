@@ -18,35 +18,50 @@ export default function Header() {
   const [departmentName, setDepartmentName] = useState("");
 
   useEffect(() => {
-    // ✅ Skip fetch if name is provided or on /quality page
     if (location.pathname === "/quality" || queryName) return;
 
-    if (departmentId) {
-      fetch(`/departments/${departmentId}`)
-        .then((res) => res.json())
+    if (departmentId && location.pathname !== "/quality") {
+      fetch(`/department-info/${departmentId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          return res.json();
+        })
         .then((data) => {
-          if (data.status === "success" && data.data.length > 0) {
-            setDepartmentName(data.data[0].DepartmentName);
+          console.log("Department info response:", data); 
+          if (data.status === "success" && data.data) {
+            setDepartmentName(data.data.DepartmentName);
           }
         })
-        .catch((err) => console.error(err));
+        .catch((err) => {
+          console.error("Error fetching department:", err);
+          setDepartmentName("");
+        });
     }
   }, [departmentId, location.pathname, queryName]);
 
-  // Use queryName first, then departmentName, then fallback
   let displayName;
   if (location.pathname === "/quality" || queryName === "Quality") {
     displayName = "Quality";
+  } else if (queryName && queryName !== "Quality") {
+    displayName = queryName;
   } else if (departmentName) {
     displayName = departmentName;
   } else if (departmentId) {
     displayName = `Department ${departmentId}`;
-  } else {
+  } else{
     displayName = "Hospital";
   }
 
-  // Only show Table & Dashboard if Quality
   const showQualityButtons = displayName === "Quality";
+  const showITButtons = displayName === "Quality";
 
   return (
     <div className="header-component">

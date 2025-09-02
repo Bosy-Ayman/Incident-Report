@@ -4,6 +4,7 @@ import IncidentForm from "./pages/IncidentForm";
 import Quality from "./pages/Quality";
 import Departments from "./pages/Departments";
 import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -40,12 +41,23 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
               <Header />
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Header />
+              <Settings />
             </ProtectedRoute>
           }
         />

@@ -37,72 +37,72 @@ export default class Quality extends Component {
     };
   }
 
-  async componentDidMount() {
-    try {
-      const token = localStorage.getItem("token");
-      
-      // Get current user ID from localStorage
-      let currentUserId = localStorage.getItem("userId") || 
-                          localStorage.getItem("userID") || 
-                          localStorage.getItem("UserID");
-      
-      // Convert to number if it's a string
-      if (currentUserId) {
-        currentUserId = parseInt(currentUserId);
+async componentDidMount() {
+  try {
+    const token = localStorage.getItem("token");
+
+    // Get current user ID from localStorage
+    let currentUserId = localStorage.getItem("userId") ||
+                        localStorage.getItem("userID") ||
+                        localStorage.getItem("UserID");
+    if (currentUserId) currentUserId = parseInt(currentUserId);
+    console.log("Debug - currentUserId from localStorage:", currentUserId);
+    this.setState({ currentUserId });
+
+    // Fetch incidents, departments, and assigned departments in parallel
+    const [incidentsRes, departmentsRes, assignedDepartmentsRes] = await Promise.all([
+      fetch("/quality", { headers: { "Authorization": `Bearer ${token}` }, credentials: "include" }),
+      fetch("/departments", { headers: { "Authorization": `Bearer ${token}` }, credentials: "include" }),
+      fetch("/assigned-departments", { headers: { "Authorization": `Bearer ${token}` }, credentials: "include" })
+    ]);
+
+    // Parse JSON responses
+    const incidentsData = await incidentsRes.json();
+    const departmentsData = await departmentsRes.json();
+    const assignedDepartmentsData = await assignedDepartmentsRes.json();
+
+    const incidentsArray = Array.isArray(incidentsData.data) ? incidentsData.data : [];
+    const departmentsArray = Array.isArray(departmentsData) ? departmentsData : [];
+    const assignedDepartmentsArray = Array.isArray(assignedDepartmentsData.data) ? assignedDepartmentsData.data : [];
+
+    // Merge assigned departments into incidents
+    const incidentsWithFeedback = incidentsArray.map(inc => {
+      const assigned = assignedDepartmentsArray.find(ad => ad.IncidentID === inc.IncidentID);
+
+      let assignedDepartmentIDs = [];
+      let assignedDepartmentNames = "";
+
+      if (assigned && assigned.DepartmentIDs) {
+        assignedDepartmentIDs = assigned.DepartmentIDs.split(",").map(id => parseInt(id.trim()));
+        assignedDepartmentNames = assigned.DepartmentNames || "";
       }
-      
-      console.log("Debug - currentUserId from localStorage:", currentUserId);
-      
-      this.setState({ currentUserId });
 
-      // Fetch incidents and departments in parallel
-      const [incidentsRes, departmentsRes] = await Promise.all([
-        fetch("/quality", { 
-          headers: { "Authorization": `Bearer ${token}` }, 
-          credentials: "include" 
-        }),
-        fetch("/departments", { 
-          headers: { "Authorization": `Bearer ${token}` }, 
-          credentials: "include" 
-        })
-      ]);
-
-      // Parse JSON responses
-      const incidentsData = await incidentsRes.json();
-      const departmentsData = await departmentsRes.json();
-
-      // Normalize arrays
-      const incidentsArray = Array.isArray(incidentsData.data) ? incidentsData.data : [];
-      const departmentsArray = Array.isArray(departmentsData) ? departmentsData : [];
-
-      // Map incidents and include responses with corrected field mapping
-      const incidentsWithFeedback = incidentsArray.map(inc => ({
+      return {
         ...inc,
-        // Check if quality feedback exists by looking for any quality-related fields
-        feedbackFlag: (inc.FeedbackFlag === 1 || 
-                      inc.FeedbackCategorization || 
-                      inc.FeedbackType || 
-                      inc.FeedbackRiskScoring || 
-                      inc.FeedbackEffectiveness) ? "true" : "false",
+        assignedDepartmentIDs,
+        assignedDepartmentNames,
+        feedbackFlag: (inc.FeedbackFlag === 1 || inc.FeedbackCategorization || inc.FeedbackType || inc.FeedbackRiskScoring || inc.FeedbackEffectiveness) ? "true" : "false",
         reviewedFlag: (inc.ReviewedFlag === "true" || inc.ReviewedFlag === "Yes") ? "true" : "false",
         type: inc.FeedbackType ? inc.FeedbackType.split(", ") : [],
         riskScoring: inc.FeedbackRiskScoring || "",
         effectiveness: inc.FeedbackEffectiveness || "",
         qualitySpecialistName: inc.QualitySpecialistName || "",
-        Response: inc.Responses ? JSON.parse(inc.Responses) : [] 
-      }));
+        Response: inc.Responses ? JSON.parse(inc.Responses) : []
+      };
+    });
 
-      // Update state
-      this.setState({
-        incidents: incidentsWithFeedback,
-        filteredIncidents: incidentsWithFeedback,
-        departments: departmentsArray
-      });
+    // Update state
+    this.setState({
+      incidents: incidentsWithFeedback,
+      filteredIncidents: incidentsWithFeedback,
+      departments: departmentsArray
+    });
 
-    } catch (err) {
-      console.error("Error fetching data in componentDidMount:", err);
-    }
+  } catch (err) {
+    console.error("Error fetching data in componentDidMount:", err);
   }
+}
+
 
   handleReviewedByManager = () => {
     const { selectedIncident, currentUserId } = this.state;
@@ -444,11 +444,9 @@ export default class Quality extends Component {
     .catch(err => console.error("Error assigning department:", err));
   };
 
-  // Function to determine which button to show
 getActionButton = (incident) => {
     const { currentUserId } = this.state;
     
-    // If incident is already closed/done, don't show any action buttons
     if (incident.status === "Done" || incident.status === "Closed") {
       return null;
     }
@@ -466,9 +464,8 @@ getActionButton = (incident) => {
       );
     }
     
-    // If feedback exists but not reviewed, show "Reviewed" button (only for user 1033)
+    // If feedback exists but not reviewed,show "Reviewed" button (only for user 1033)
     if (incident.feedbackFlag === "true" && incident.reviewedFlag !== "true") {
-      // Make sure we're comparing the right types
       if (currentUserId === 1033 || currentUserId === "1033") {
         return (
           <button
@@ -707,34 +704,46 @@ getActionButton = (incident) => {
                         {selectedIncident.responded === "Yes" ? "Yes" : "No"}
                       </span>
                     </p>
-                    <p className="span-2">
-                      <strong>Assigned Department:</strong> {selectedIncident.DepartmentName || "—"}
-                    </p>
+      <p className="span-2">
+                  <strong>Assigned Department(s):</strong>{" "}
+                  {selectedIncident.assignedDepartmentNames && selectedIncident.assignedDepartmentNames.trim() !== "" ? (
+                    <ul>
+                      {selectedIncident.assignedDepartmentNames.split(", ").map((name, index) => (
+                        <li key={index}>{name}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    "—"
+                  )}
+                </p>
+
+
                   </div>
-                {selectedIncident?.status === "New" && (
-                  <div>
-                    <h4>Send to the Department</h4>
-                    <div className="assign-controls">
-                      <select
-                        value={this.state.selectedDepartmentId}
-                        onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
-                      >
-                        <option value="">Select Department</option>
-                        {this.state.departments.map((dept) => (
-                          <option key={dept.DepartmentID} value={dept.DepartmentID}>
-                            {dept.DepartmentName}
-                          </option>
-                        ))}
-                      </select>
-                      <button 
-                        onClick={this.handleAssignDepartment} 
-                        disabled={!this.state.selectedDepartmentId}
-                      >
-                        Submit
-                      </button>
+                  {(selectedIncident?.status === "New" || selectedIncident?.status === "Assigned"|| selectedIncident?.status === "Pending") && (
+                    <div>
+                      <h4>Send to the Department</h4>
+                      <div className="assign-controls">
+                        <select
+                          value={this.state.selectedDepartmentId}
+                          onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
+                        >
+                          <option value="">Select Department</option>
+                          {this.state.departments.map((dept) => (
+                            <option key={dept.DepartmentID} value={dept.DepartmentID}>
+                              {dept.DepartmentName}
+                            </option>
+                          ))}
+                        </select>
+                        <button 
+                          onClick={this.handleAssignDepartment} 
+                          disabled={!this.state.selectedDepartmentId}
+                        >
+                          Submit
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                    )}
+
 
                 </div>
 

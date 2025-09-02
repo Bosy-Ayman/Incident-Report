@@ -235,7 +235,7 @@ handleSubmit = async (event) => {
               {this.state.attachments.map((file, index) => (
                 <li key={index}>
                   {file.name}
-                  <button type="button" onClick={() => this.handleRemoveFile(index)}>
+                  <button type="remove-btn" onClick={() => this.handleRemoveFile(index)}>
                     Remove
                   </button>
                 </li>

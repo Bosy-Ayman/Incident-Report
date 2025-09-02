@@ -119,9 +119,20 @@ header img {
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
+/*I will fix it later */
+.incident-container .remove-btn {
+  width: 20px;
+  background-color: #3589ad;
+  color: white;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
 
 .incident-container button:hover {
-  background-color: #0056b3;
+  background-color: #2f7999;
 }
 
 @media (max-width: 600px) {
