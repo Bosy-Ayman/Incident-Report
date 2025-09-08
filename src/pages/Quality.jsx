@@ -1,10 +1,7 @@
 import React, { Component } from "react";
-import { useLocation } from "react-router-dom";
 import "./Quality.css";
+import "../components/Loading.css";
 
-function useQuery() {
-  return new URLSearchParams(useLocation().search);
-}
 export default class Quality extends Component {
   
   constructor(props) {
@@ -21,8 +18,10 @@ export default class Quality extends Component {
       categorization: "",
       qualitySpecialistName: "",
       reviewedFlag:'',
-      type: [],
+       type: "",
       riskScoring: "",
+      loading: true,
+
       effectiveness: "",
       feedbackFlag: "",
       ReviewedFlag: "",
@@ -51,9 +50,17 @@ async componentDidMount() {
 
     // Fetch incidents, departments, and assigned departments in parallel
     const [incidentsRes, departmentsRes, assignedDepartmentsRes] = await Promise.all([
-      fetch("/quality", { headers: { "Authorization": `Bearer ${token}` }, credentials: "include" }),
-      fetch("/departments", { headers: { "Authorization": `Bearer ${token}` }, credentials: "include" }),
-      fetch("/assigned-departments", { headers: { "Authorization": `Bearer ${token}` }, credentials: "include" })
+      fetch("/quality", {
+        headers: { "Authorization": `Bearer ${token}` }, 
+        credentials: "include" }
+      ),
+      fetch("/departments", { 
+        headers: { "Authorization": `Bearer ${token}` }, 
+        credentials: "include" }
+      ),
+      fetch("/assigned-departments", { 
+        headers: { "Authorization": `Bearer ${token}` },
+        credentials: "include" })
     ]);
 
     // Parse JSON responses
@@ -95,64 +102,133 @@ async componentDidMount() {
     this.setState({
       incidents: incidentsWithFeedback,
       filteredIncidents: incidentsWithFeedback,
-      departments: departmentsArray
+      departments: departmentsArray,
+      loading: false
     });
 
   } catch (err) {
     console.error("Error fetching data in componentDidMount:", err);
+    this.setState({ loading: false });
   }
 }
 
 
-  handleReviewedByManager = () => {
-    const { selectedIncident, currentUserId } = this.state;
-    if (!selectedIncident) return;
 
-    // Check if current user is authorized (user ID 1033)
-    if (currentUserId !== 1033) {
-      alert("You are not authorized to review incidents.");
-      return;
+handleReviewedByManager = () => {
+  const { selectedIncident, currentUserId } = this.state;
+  if (!selectedIncident) return;
+
+if (currentUserId?.toString() !== "1033") {
+  alert("You are not authorized to review incidents.");
+  return;
+}
+
+
+
+  const token = localStorage.getItem("token");
+
+  fetch("/review-incident", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      incidentId: selectedIncident.IncidentID,
+      reviewed: true
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("Incident marked as reviewed successfully!");
+      this.setState(prevState => {
+        const updatedIncidents = prevState.incidents.map(inc =>
+          inc.IncidentID === selectedIncident.IncidentID
+            ? { 
+                ...inc, 
+                reviewedFlag: "true",
+                ReviewedFlag: "Yes" // Update both variations
+              }
+            : inc
+        );
+        
+        // Also update the selectedIncident if it's currently open in modal
+        const updatedSelectedIncident = prevState.selectedIncident 
+          ? { 
+              ...prevState.selectedIncident, 
+              reviewedFlag: "true",
+              ReviewedFlag: "Yes"
+            }
+          : null;
+
+        return { 
+          incidents: updatedIncidents, 
+          filteredIncidents: updatedIncidents,
+          selectedIncident: updatedSelectedIncident,
+          showDetailsModal: false // Close modal after successful review
+        };
+      });
+    } else {
+      alert("Failed to mark as reviewed: " + (data.message || "Unknown error"));
     }
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Failed to mark as reviewed: " + err.message);
+  });
+};
 
-    const token = localStorage.getItem("token");
+// 2. Fixed confirmCloseIncident method
+confirmCloseIncident = () => {
+  const { selectedIncident } = this.state;
+  if (!selectedIncident) return;
 
-    fetch("/review-incident", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        incidentId: selectedIncident.IncidentID,
-        reviewed: true
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === "success") {
-        alert("Incident marked as reviewed successfully!");
-        this.setState(prevState => {
-          const updatedIncidents = prevState.incidents.map(inc =>
-            inc.IncidentID === selectedIncident.IncidentID
-              ? { ...inc, reviewedFlag: "true" }
-              : inc
-          );
-          return { 
-            incidents: updatedIncidents, 
-            filteredIncidents: updatedIncidents,
-            showDetailsModal: false // Close modal after successful review
-          };
-        });
-      } else {
-        alert("Failed to mark as reviewed: " + (data.message || "Unknown error"));
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Failed to mark as reviewed: " + err.message);
-    });
-  };
+  console.log("Closing incident:", selectedIncident); 
+  const token = localStorage.getItem("token");
+  
+  fetch('/quality/close-incident', {
+    method: 'PUT', 
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}` // Add authorization header
+    },
+    credentials: 'include',
+    body: JSON.stringify({ IncidentID: selectedIncident.IncidentID })
+  })
+  .then(res => res.json())
+  .then((data) => {
+    if (data.status === "success") {
+      alert("Incident closed successfully!");
+      // Update local state instead of full refresh
+      this.setState(prevState => {
+        const updatedIncidents = prevState.incidents.map(inc =>
+          inc.IncidentID === selectedIncident.IncidentID
+            ? { ...inc, status: 'Done' }
+            : inc
+        );
+        
+        // Also update the selectedIncident if it's currently open in modal
+        const updatedSelectedIncident = prevState.selectedIncident 
+          ? { ...prevState.selectedIncident, status: 'Done' }
+          : null;
+
+        return { 
+          incidents: updatedIncidents, 
+          filteredIncidents: updatedIncidents,
+          selectedIncident: updatedSelectedIncident
+        };
+      });
+    } else {
+      alert("Failed to close incident: " + data.message);
+    }
+  })
+  .catch(err => {
+    console.error("Error closing incident:", err);
+    alert("Failed to close incident.");
+  });
+};
 
   /*Details Modal*/
   openDetailsModal = (incident) => {
@@ -174,33 +250,36 @@ async componentDidMount() {
   };
 
   closeDetailsModal= ()=> {
-    this.setState({ showDetailsModal: false, selectedIncident: null });
-  };
-
-  openUpdateModal = (incident) => {
-    // Auto-populate quality specialist name from login
-    const loggedInUserName = localStorage.getItem("userName") || "";
-    
-    const qualityData = {
-      categorization: incident.FeedbackCategorization || "",
-      type: incident.FeedbackType ? incident.FeedbackType.split(", ") : [],
-      riskScoring: incident.FeedbackRiskScoring || "",
-      effectiveness: incident.FeedbackEffectiveness || "",
-      qualitySpecialistName: incident.QualitySpecialistName,
-      feedbackFlag: incident.feedbackFlag || "",
-    };
-
-    this.setState({
-      showUpdateModal: true,
-      selectedIncident: { ...incident, ...qualityData },
-      categorization: qualityData.categorization,
-      type: qualityData.type,
-      riskScoring: qualityData.riskScoring,
-      effectiveness: qualityData.effectiveness,
-      qualitySpecialistName: qualityData.qualitySpecialistName,
-      feedbackFlag: qualityData.feedbackFlag,
+    this.setState({ 
+      showDetailsModal: false,
+       selectedIncident: null
     });
   };
+
+openUpdateModal = (incident) => {
+  // Auto-populate quality specialist name from login
+  const loggedInUserName = localStorage.getItem("userName") || "";
+  
+  const qualityData = {
+    categorization: incident.FeedbackCategorization || "",
+    type: incident.FeedbackType || "", // Change this to handle single string instead of array
+    riskScoring: incident.FeedbackRiskScoring || "",
+    effectiveness: incident.FeedbackEffectiveness || "",
+    qualitySpecialistName: incident.QualitySpecialistName || loggedInUserName,
+    feedbackFlag: incident.feedbackFlag || "",
+  };
+
+  this.setState({
+    showUpdateModal: true,
+    selectedIncident: { ...incident, ...qualityData },
+    categorization: qualityData.categorization,
+    type: qualityData.type, // This should now be a string
+    riskScoring: qualityData.riskScoring,
+    effectiveness: qualityData.effectiveness,
+    qualitySpecialistName: qualityData.qualitySpecialistName,
+    feedbackFlag: qualityData.feedbackFlag,
+  });
+};
 
   /*Close Incident State*/
   confirmCloseIncident = () => {
@@ -297,104 +376,124 @@ async componentDidMount() {
     }));
   };
 
-  handleUpdateSubmit = (e) => {
-    e.preventDefault();
-    const { selectedIncident, categorization, type, riskScoring, effectiveness,qualitySpecialistName } = this.state;
+ handleUpdateSubmit = (e) => {
+  e.preventDefault();
+  const { selectedIncident, categorization, type, riskScoring, effectiveness, qualitySpecialistName } = this.state;
 
-    if (!selectedIncident?.IncidentID) {
-      alert("IncidentID is missing!");
-      return;
-    }
+  if (!selectedIncident?.IncidentID) {
+    alert("IncidentID is missing!");
+    return;
+  }
 
-    // Validate required fields
-    if (!categorization.trim()) {
-      alert("Please provide a categorization.");
-      return;
-    }
+  // Validate required fields
+  if (!categorization.trim()) {
+    alert("Please provide a categorization.");
+    return;
+  }
 
-    if (!type || type.length === 0) {
-      alert("Please select at least one type.");
-      return;
-    }
+  // Updated validation for single select
+  if (!type || (Array.isArray(type) && type.length === 0) || (!Array.isArray(type) && !type.trim())) {
+    alert("Please select at least one type.");
+    return;
+  }
 
-    if (!riskScoring) {
-      alert("Please select a risk scoring.");
-      return;
-    }
+  if (!riskScoring) {
+    alert("Please select a risk scoring.");
+    return;
+  }
 
-    if (!effectiveness) {
-      alert("Please select effectiveness review.");
-      return;
-    }
-    const token = localStorage.getItem("token");
+  if (!effectiveness) {
+    alert("Please select effectiveness review.");
+    return;
+  }
 
-    // Submit quality feedback
-    fetch("/quality-feedback", {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}` 
-      },
-      credentials: "include", 
-      body: JSON.stringify({
-        incidentId: selectedIncident.IncidentID,
-        type: type.join(", "),
-        categorization,
-        riskScoring,
-        effectiveness,
-        qualitySpecialistName,
-      })
+  const token = localStorage.getItem("token");
+  
+  // Handle both array and string type values
+  const typeValue = Array.isArray(type) ? type.join(", ") : type;
+
+  // Submit quality feedback
+  fetch("/quality-feedback", {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}` 
+    },
+    credentials: "include", 
+    body: JSON.stringify({
+      incidentId: selectedIncident.IncidentID,
+      type: typeValue,
+      categorization,
+      riskScoring,
+      effectiveness,
+      qualitySpecialistName,
     })
-    .then(res => {
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (data.status === "success") {
-        alert("Feedback submitted successfully!");
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then(data => {
+    if (data.status === "success") {
+      alert("Feedback submitted successfully!");
+      
+      // Update local state so correct button shows
+      this.setState(prevState => {
+        const updatedIncidents = prevState.incidents.map(inc =>
+          inc.IncidentID === selectedIncident.IncidentID
+          ? {
+              ...inc,
+              feedbackFlag: "true",
+              reviewedFlag: "false",   
+              ReviewedFlag: "No",
+              FeedbackFlag: 1,
+              FeedbackCategorization: categorization,
+              FeedbackType: typeValue,
+              FeedbackRiskScoring: riskScoring,
+              FeedbackEffectiveness: effectiveness,
+              QualitySpecialistName: qualitySpecialistName,
+              FeedbackDate: new Date().toISOString().split('T')[0], // Add current date
+              // Update the computed fields used in display
+              categorization: categorization,
+              type: Array.isArray(type) ? type : [type],
+              riskScoring: riskScoring,
+              effectiveness: effectiveness,
+              qualitySpecialistName: qualitySpecialistName
+            } 
+          : inc
+        );
         
-        // Update local state so correct button shows
-        this.setState(prevState => {
-          const updatedIncidents = prevState.incidents.map(inc =>
-            inc.IncidentID === selectedIncident.IncidentID
-            ? {
-                ...inc,
-                feedbackFlag: "true",
-                reviewedFlag: "false",   
-                FeedbackCategorization: categorization,
-                FeedbackType: type.join(", "),
-                FeedbackRiskScoring: riskScoring,
-                FeedbackEffectiveness: effectiveness,
-                QualitySpecialistName: qualitySpecialistName
-              } 
-            : inc
-          );
-          
-          return {
-            incidents: updatedIncidents,
-            filteredIncidents: updatedIncidents,
-            showUpdateModal: false,
-            selectedIncident: null,
-            // Reset form fields
-            categorization: "",
-            type: [],
-            riskScoring: "",
-            effectiveness: "",
-            Description:"",
-            qualitySpecialistName: ""
-          };
-        });
-      } else {
-        alert("Failed to save feedback: " + (data.message || "Unknown error"));
-      }
-    })
-    .catch(err => {
-      console.error("Error submitting feedback:", err);
-      alert("Failed to save feedback: " + err.message);
-    });
-  };
+        return {
+          incidents: updatedIncidents,
+          filteredIncidents: updatedIncidents,
+          showUpdateModal: false,
+          selectedIncident: null,
+          // Reset form fields
+          categorization: "",
+          type: Array.isArray(this.state.type) ? [] : "", // Reset based on current type
+          riskScoring: "",
+          effectiveness: "",
+          qualitySpecialistName: ""
+        };
+      });
+    } else {
+      alert("Failed to save feedback: " + (data.message || "Unknown error"));
+    }
+  })
+  .catch(err => {
+    console.error("Error submitting feedback:", err);
+    alert("Failed to save feedback: " + err.message);
+  });
+};
+
+// 5. Add this method to ensure proper state initialization for type field
+initializeFormState = () => {
+  this.setState({
+    type: "", // Change this from [] to "" for single select
+  });
+};
 
   /* Update Quality Feedback */
   handleCheckboxChange = (e) => {
@@ -405,22 +504,42 @@ async componentDidMount() {
     });
   };
   
-  handleAssignDepartment = () => {
-    const { selectedIncident, selectedDepartmentId } = this.state;
-    
-    fetch("/quality", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        incidentId: selectedIncident.IncidentID,
-        departmentId: selectedDepartmentId
-      })
+// Replace the existing handleAssignDepartment method in your Quality.js component with this:
+handleAssignDepartment = () => {
+  const { selectedIncident, selectedDepartmentId } = this.state;
+  
+  if (!selectedIncident || !selectedDepartmentId) {
+    alert("Please select a department");
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+  
+  fetch("/quality", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      incidentId: selectedIncident.IncidentID,
+      departmentId: selectedDepartmentId
     })
-    .then(res => res.json())
-    .then(() => {
+  })
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+    return res.json();
+  })
+  .then(data => {
+    if (data.status === "success") {
+      alert("Department assigned successfully!");
+      
+      // Get department name for display
+      const departmentName = this.state.departments.find(d => d.DepartmentID == selectedDepartmentId)?.DepartmentName || "";
+      
       // Update local state instead of full refresh
       this.setState(prevState => {
         const updatedIncidents = prevState.incidents.map(inc =>
@@ -429,20 +548,46 @@ async componentDidMount() {
                 ...inc, 
                 status: 'Assigned',
                 DepartmentID: selectedDepartmentId,
-                DepartmentName: this.state.departments.find(d => d.DepartmentID == selectedDepartmentId)?.DepartmentName || inc.DepartmentName
+                DepartmentName: departmentName,
+                // Update assigned departments arrays as well
+                assignedDepartmentIDs: [...(inc.assignedDepartmentIDs || []), parseInt(selectedDepartmentId)],
+                assignedDepartmentNames: inc.assignedDepartmentNames 
+                  ? `${inc.assignedDepartmentNames}, ${departmentName}`
+                  : departmentName
               }
             : inc
         );
+
+        // Also update the selectedIncident if it's currently open in modal
+        const updatedSelectedIncident = prevState.selectedIncident 
+          ? { 
+              ...prevState.selectedIncident, 
+              status: 'Assigned',
+              DepartmentID: selectedDepartmentId,
+              DepartmentName: departmentName,
+              assignedDepartmentIDs: [...(prevState.selectedIncident.assignedDepartmentIDs || []), parseInt(selectedDepartmentId)],
+              assignedDepartmentNames: prevState.selectedIncident.assignedDepartmentNames 
+                ? `${prevState.selectedIncident.assignedDepartmentNames}, ${departmentName}`
+                : departmentName
+            }
+          : null;
+
         return {
           incidents: updatedIncidents,
           filteredIncidents: updatedIncidents,
-          showDetailsModal: false, 
+          selectedIncident: updatedSelectedIncident,
           selectedDepartmentId: "" 
         };
       });
-    })
-    .catch(err => console.error("Error assigning department:", err));
-  };
+    } else {
+      alert("Failed to assign department: " + (data.message || "Unknown error"));
+    }
+  })
+  .catch(err => {
+    console.error("Error assigning department:", err);
+    alert("Failed to assign department: " + err.message);
+  });
+};
 
 getActionButton = (incident) => {
     const { currentUserId } = this.state;
@@ -466,7 +611,7 @@ getActionButton = (incident) => {
     
     // If feedback exists but not reviewed,show "Reviewed" button (only for user 1033)
     if (incident.feedbackFlag === "true" && incident.reviewedFlag !== "true") {
-      if (currentUserId === 1033 || currentUserId === "1033") {
+      if (currentUserId === 1033) {
         return (
           <button
             className="reviewed-button"
@@ -515,8 +660,19 @@ getActionButton = (incident) => {
       showUpdateModal,
       selectedIncident,
       filteredIncidents,
-      filters
+      filters,
+      loading
     } = this.state;
+  if (loading) {
+    return (
+      <div 
+        className="protected-container" 
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
     return (
       <div className="quality-dashboard">
@@ -673,18 +829,28 @@ getActionButton = (incident) => {
              <div className="section">
               <h3>Actions & Attachments</h3>
               <p><strong>Immediate Action Taken:</strong> {selectedIncident.ImmediateAction || "—"}</p>
-              {selectedIncident.Attachments && (
-            <p>
-              <strong>Attachments:</strong>{" "}
-              <a
-                href={`/uploads/${selectedIncident.Attachments}`}
-                target="_blank"
+
+          {selectedIncident.Attachment && (
+        <div>
+          <strong>Attachments:</strong>
+          <ul>
+            {selectedIncident.Attachment.split(",").map((file, idx) => (
+              <li key={idx}>
+               <a 
+                href={`/uploads/${file.trim()}`} 
+                target="_blank" 
                 rel="noopener noreferrer"
               >
-                {selectedIncident.Attachments}
+                {file.trim()}
               </a>
-            </p>
-              )}
+
+
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
             </div>
 
                 {/* Status & Assignment */}
@@ -704,7 +870,7 @@ getActionButton = (incident) => {
                         {selectedIncident.responded === "Yes" ? "Yes" : "No"}
                       </span>
                     </p>
-      <p className="span-2">
+               <p className="span-2">
                   <strong>Assigned Department(s):</strong>{" "}
                   {selectedIncident.assignedDepartmentNames && selectedIncident.assignedDepartmentNames.trim() !== "" ? (
                     <ul>
@@ -833,21 +999,17 @@ getActionButton = (incident) => {
                   placeholder=""
                 />
 
-                <h3>Type</h3>
-                <div className="checkbox-group">
-                  {["Near Miss Events", "Adverse Events", "Significant Events", "Sentinel Events"].map((item) => (
-                    <label key={item}>
-                      <input
-                        type="checkbox"
-                        name="type"
-                        value={item}
-                        onChange={this.handleCheckboxChange}
-                        checked={this.state.type.includes(item)}
-                      />
-                      <strong>{item}</strong>
-                    </label>
-                  ))}
-                </div>
+              <h3>Type</h3>
+              <select
+                value={this.state.type.length > 0 ? this.state.type[0] : ""}
+                onChange={(e) => this.setState({ type: e.target.value ? [e.target.value] : [] })}
+              >
+                <option value="">Select type</option>
+                <option value="Near Miss Events">Near Miss Events</option>
+                <option value="Adverse Events">Adverse Events</option>
+                <option value="Significant Events">Significant Events</option>
+                <option value="Sentinel Events">Sentinel Events</option>
+              </select>
                 
                 <h3>Risk Scoring</h3>
                 <div id="filters">

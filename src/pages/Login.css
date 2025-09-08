@@ -1,4 +1,3 @@
-/* Full-width top header */
 .top-header {
     width: 100%;
     background:  #3b98c0;
@@ -11,7 +10,7 @@
 }
 
 .top-header img {
-    height: 50px; /* bigger logo */
+    height: 50px; 
 }
 
 .top-header h1 {

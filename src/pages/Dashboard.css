@@ -1,121 +1,121 @@
+/*-------------------- Body & Container --------------------*/
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Roboto', Arial, sans-serif;
     background: #f0f3f7;
     margin: 0;
     padding: 0;
 }
+
 .dashboard-container {
-  max-width: 1210px;
-  margin: auto;
+    max-width: 1210px;
+    margin: 0 auto;
+    padding: 20px;
 }
 
-/*-------------------- Font Style --------------------------------*/
+/*-------------------- Headings --------------------*/
 .dashboard-container h1 {
-  font-weight: bold;
-  color: #686464;
-  margin-bottom: 40px;
+    font-weight: bold;
+    color: #686464;
+    margin-bottom: 40px;
 }
 
-.dashboard-container h2 {
-  color:black ;
-  flex-grow: 1;
-  font-size: 1.4rem;
-}
+.dashboard-container h2, 
 .dashboard-container h3 {
-  color:black ;
-  flex-grow: 1;
-  font-size: 1.4rem;
+    color: #222;
+    font-size: 1.4rem;
 }
 
-.dashboard-container label{
-  font-weight: bold;
-  margin-right: 8px;
+/*-------------------- Labels --------------------*/
+.dashboard-container label {
+    font-weight: bold;
+    margin-right: 8px;
+    color: #555;
 }
 
-
-/*--------------------------Charts css-------------------------*/
+/*-------------------- Cards --------------------*/
 .dashboard-container .cards {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: 1fr;
-  padding-top: 16px;
-  padding-bottom: 16px;
-  color: #b4b0b0;
-  border-radius: 6px;
-
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+    padding: 16px 0;
 }
+
+.dashboard-container .cards .MuiCard-root {
+    background: linear-gradient(135deg,#388fb5, #5bbbe4);
+    color: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.dashboard-container .cards .MuiCard-root:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+.dashboard-container .cards .MuiTypography-h4 {
+    font-weight: 700;
+    font-size: 2rem;
+    color: #f0f3f7;
+}
+
+/*-------------------- Charts --------------------*/
 .dashboard-container .charts-container {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: 2fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap:16px;
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    grid-template-rows: repeat(2, 1fr);
+    gap: 16px;
 }
 
 .dashboard-container .charts-container > div {
-  background-color: white;
-  border-radius: 10px;
-  padding: 10px;
-  height: 400px;
-  display: grid; 
-  margin-bottom: 16px;
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    height: 400px;
+    display: grid;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    transition: transform 0.3s, box-shadow 0.3s;
 }
 
-.dashboard-container .pie-chart-1{
-  grid-column: 2/3;
-  grid-row:1/2;
-}
-.dashboard-container .pie-chart-2 {
-  grid-column: 2/3;
-  grid-row:2/3;
+.dashboard-container .charts-container > div:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
 }
 
-
-.dashboard-container .bar-chart-1 {
-  grid-column: 1/2; 
-  grid-row:1/2;
+/* Pie chart card */
+.dashboard-container .pie-chart {
+    display: grid;
+    justify-items: center;
+    align-items: center;
 }
 
-.dashboard-container .line-chart {
-  grid-column: 1/2;
-  grid-row:2/3;  
-}
+/* Positions */
+.dashboard-container .bar-chart-1 { grid-column: 1 / 2; grid-row: 1 / 2; }
+.dashboard-container .line-chart  { grid-column: 1 / 2; grid-row: 2 / 3; }
+.dashboard-container .pie-chart-1 { grid-column: 2 / 3; grid-row: 1 / 2; }
+.dashboard-container .pie-chart-2 { grid-column: 2 / 3; grid-row: 2 / 3; }
 
-
-/*------------------For mobile----------------*/
-
- @media (min-width: 600px) {
-  .dashboard-container .cards {
-    grid-template-columns: repeat(2, 1fr); 
-  }
+/*-------------------- Responsive --------------------*/
+@media (min-width: 600px) {
+    .dashboard-container .cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (min-width: 900px) {
-  .dashboard-container .cards {
-    grid-template-columns: repeat(4, 1fr);
-  }
+    .dashboard-container .cards {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
-/*
 
 @media (max-width: 768px) {
-  .dashboard-container {
-    padding: 10px;
-  }
+    .dashboard-container .charts-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
 
-  .dashboard-container > div {
-    padding: 15px;
-  }
-
-  .dashboard-container h2 {
-    font-size: 1.1rem;
-  }
-
-  .pie-chart-1, .pie-chart-2 {
-    width: 100%;
-  }
-
-  .bar-chart-1, .line-chart {
-    width: 100%;
-  }
-} */
-
+    .dashboard-container > div {
+        padding: 15px;
+        height: 300px;
+    }
+}

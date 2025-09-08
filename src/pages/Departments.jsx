@@ -276,6 +276,7 @@ export default class Departments extends Component {
       filteredIncidents: this.state.incidents
     });
   };
+  
 
   render() {
     const { filteredIncidents, filters, showDetailsModal, showUpdateModal, selectedIncident, isLoading } = this.state;
@@ -284,8 +285,13 @@ export default class Departments extends Component {
       <div className="quality-dashboard">
         <main>
           {isLoading ? (
-            <div>Loading incidents...</div>
-          ) : (
+      <div 
+        className="protected-container" 
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
+        <div className="loader"></div>
+      </div>
+      ) : (
             <>
               <div id="filters">
                 <label htmlFor="statusFilter">Status:</label>
@@ -331,8 +337,11 @@ export default class Departments extends Component {
                       <td className={`status-${incident.status.replace(/\s/g, "")}`}>{incident.status || '-'}</td>
                       <td>
                         <button className="btn-details" onClick={() => this.openDetailsModal(incident)}>Details</button>
-                        {(incident.status === 'Assigned' || incident.status === 'Pending') && incident.RespondedFlag === 'false' && (
-                          <button className="btn-update" onClick={() => this.openUpdateModal(incident)} style={{ marginLeft: "10px" }}>Update</button>
+                        {(incident.status === 'Assigned' || incident.status === 'Pending') && (
+                          <button 
+                          className="btn-update" 
+                          onClick={() => this.openUpdateModal(incident)} 
+                          style={{ marginLeft: "10px" }}>Update</button>
                         )}
                       </td>
                     </tr>
@@ -382,18 +391,26 @@ export default class Departments extends Component {
                     <div className="section">
                       <h3>Actions & Attachments</h3>
                       <p><strong>Immediate Action Taken:</strong> {selectedIncident.ImmediateAction || "—"}</p>
-                      {selectedIncident.Attachments && (
-                        <p>
-                          <strong>Attachments:</strong>{" "}
-                          <a
-                            href={`/uploads/${selectedIncident.Attachments}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {selectedIncident.Attachments}
-                          </a>
-                        </p>
-                      )}
+                    {selectedIncident.Attachment && (
+                      <div>
+                        <strong>Attachments:</strong>
+                        <ul>
+                          {selectedIncident.Attachment.split(",").map((file, idx) => (
+                            <li key={idx}>
+                            <a 
+                              href={`/uploads/${file.trim()}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                            >
+                              {file.trim()}
+                            </a>
+
+
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     </div>
 
                     <div className="section">

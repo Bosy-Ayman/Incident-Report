@@ -29,13 +29,17 @@ export default class IncidentForm extends Component {
   };
 
   handleFileChange = (event) => {
-    this.setState({ attachments: Array.from(event.target.files) });
+    const newFiles = Array.from(event.target.files);
+    this.setState((prevState) => ({
+      attachments: [...prevState.attachments, ...newFiles],
+    }));
   };
 
+  // ADDED: Missing handleRemoveFile function
   handleRemoveFile = (index) => {
-    const updatedFiles = [...this.state.attachments];
-    updatedFiles.splice(index, 1);
-    this.setState({ attachments: updatedFiles });
+    this.setState((prevState) => ({
+      attachments: prevState.attachments.filter((_, i) => i !== index),
+    }));
   };
 
 handleSubmit = async (event) => {
@@ -43,51 +47,67 @@ handleSubmit = async (event) => {
   const form = event.target;
 
   try {
-    const formData = new FormData(form);
+    const formData = new FormData();
 
+    // Append form fields directly from state and form elements
+    formData.append('reporter_name', form.reporter_name.value);
+    formData.append('reporter_title', form.reporter_title.value);
+    formData.append('incident_date', form.incident_date.value);
+    formData.append('incident_time', form.incident_time.value);
+    formData.append('location', form.location.value);
+    formData.append('description', form.description.value);
+    formData.append('immediate_action', form.immediate_action.value);
+    formData.append('patientChecked', this.state.patientChecked);
+    formData.append('employeeChecked', this.state.employeeChecked);
+    formData.append('visitorChecked', this.state.visitorChecked);
+    formData.append('patient_name', this.state.patient_name);
+    formData.append('employee_name', this.state.employee_name);
+    formData.append('visitor_name', this.state.visitor_name);
+    formData.append('mrn', this.state.mrn);
+    formData.append('report_time', this.state.reportTime);
 
-    // Append other fields from state
-    formData.append("patient_name", this.state.patient_name);
-    formData.append("employee_name", this.state.employee_name);
-    formData.append("visitor_name", this.state.visitor_name);
-    formData.append("patientChecked", this.state.patientChecked);
-    formData.append("employeeChecked", this.state.employeeChecked);
-    formData.append("visitorChecked", this.state.visitorChecked);
-    formData.append("report_time", this.state.reportTime);
-    formData.append("mrn", this.state.mrn);
-
-    const res = await fetch("/incident-form", {
-      method: "POST",
-      body: formData
+    // Append files
+    this.state.attachments.forEach((file) => {
+      formData.append('attachment', file);
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    // Log FormData for debugging
+    for (let pair of formData.entries()) {
+      console.log(`${pair[0]}: ${pair[1]}`);
+    }
+
+    const res = await fetch('/incident-form', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errorText}`);
+    }
 
     const response = await res.json();
 
-    alert(response.message || "Incident submitted successfully!");
+    alert(response.message || 'Incident submitted successfully!');
 
+    // Reset form
     form.reset();
     this.setState({
       patientChecked: false,
       employeeChecked: false,
       visitorChecked: false,
-      patient_name: "",
-      employee_name: "",
-      visitor_name: "",
-      mrn: "",
+      patient_name: '',
+      employee_name: '',
+      visitor_name: '',
+      mrn: '',
       attachments: [],
       reportTime: new Date().toISOString().slice(0, 16),
     });
-
   } catch (err) {
-    alert("Error submitting form:\n" + err.message);
-    console.error(err);
+    console.error('Error submitting form:', err);
+    alert('Error submitting form:\n' + err.message);
   }
 };
-
-
-
   render() {
     const { patientChecked, employeeChecked, visitorChecked } = this.state;
 
@@ -231,16 +251,32 @@ handleSubmit = async (event) => {
               multiple
               onChange={this.handleFileChange}
             />
-            <ul>
-              {this.state.attachments.map((file, index) => (
-                <li key={index}>
-                  {file.name}
-                  <button type="remove-btn" onClick={() => this.handleRemoveFile(index)}>
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
+
+            {/* Display selected files */}
+            {this.state.attachments.length > 0 && (
+              <ul>
+                {this.state.attachments.map((file, index) => (
+                  <li key={index}>
+                    {file.name}
+                    {file.type.startsWith("image/") && (
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt="preview"
+                        width="50"
+                        style={{ marginLeft: "10px" }}
+                      />
+                    )}
+                    <button 
+                      type="button" 
+                      onClick={() => this.handleRemoveFile(index)}
+                      style={{ marginLeft: "10px" }}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <button type="submit">Submit</button>
           </form>

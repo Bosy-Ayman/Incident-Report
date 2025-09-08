@@ -13,8 +13,8 @@ export default function Header() {
 
   // detect departmentId from params or query
   const departmentId = params.departmentId || query.get("departmentId");
-  const queryName = query.get("name"); // <-- read name from query
-
+  const queryName = query.get("name");
+  
   const [departmentName, setDepartmentName] = useState("");
 
   useEffect(() => {
@@ -35,7 +35,8 @@ export default function Header() {
           return res.json();
         })
         .then((data) => {
-          console.log("Department info response:", data); 
+          console.log("Department info response:", data);
+          
           if (data.status === "success" && data.data) {
             setDepartmentName(data.data.DepartmentName);
           }
@@ -48,20 +49,23 @@ export default function Header() {
   }, [departmentId, location.pathname, queryName]);
 
   let displayName;
-  if (location.pathname === "/quality" || queryName === "Quality") {
+  // Check for IT first, then Quality
+  if (queryName === "IT" || location.pathname === "/it-department" || departmentId === "44" || departmentId === 44) {
+    displayName = "IT";
+  } else if (location.pathname === "/quality" || queryName === "Quality") {
     displayName = "Quality";
-  } else if (queryName && queryName !== "Quality") {
+  } else if (queryName && queryName !== "Quality" && queryName !== "IT") {
     displayName = queryName;
   } else if (departmentName) {
     displayName = departmentName;
   } else if (departmentId) {
     displayName = `Department ${departmentId}`;
-  } else{
+  } else {
     displayName = "Hospital";
   }
 
   const showQualityButtons = displayName === "Quality";
-  const showITButtons = displayName === "Quality";
+  const showITButtons = displayName === "IT";
 
   return (
     <div className="header-component">
@@ -78,6 +82,24 @@ export default function Header() {
                 <li>
                   <Link to={`/dashboard?departmentId=34&name=Quality`}>Dashboard</Link>
                 </li>
+              </>
+            )}
+            {showITButtons && (
+              <>
+                <li>
+                  <Link to={`/quality?departmentId=44&name=IT`}>Incidents</Link>
+                </li>
+                <li>
+                  <Link to={`/dashboard?departmentId=44&name=IT`}>Dashboard</Link>
+                </li>
+                <li>
+                  <Link to="/it-department">Edit User</Link>
+                </li>
+                 <li>
+                  <Link to={`/add-user?departmentId=44&name=IT`}>Add User</Link>
+                </li>
+                
+               
               </>
             )}
             <li>

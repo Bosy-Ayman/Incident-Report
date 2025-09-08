@@ -1,66 +1,96 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import IncidentForm from "./pages/IncidentForm";
 import Quality from "./pages/Quality";
 import Departments from "./pages/Departments";
 import Dashboard from "./pages/Dashboard";
-import Settings from "./pages/Settings";
+import ITDepartment from "./pages/ITDepartment";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AddUser from "./pages/AddUser";
 
 function App() {
+  console.log("App: Rendering routes");
+  
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
-
+        
         {/* Protected routes */}
         <Route
           path="/incident-form"
           element={
             <ProtectedRoute>
-            <IncidentForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/quality"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Quality />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/departments/:departmentId"
-          element={
-            <ProtectedRoute>
-              <Header />
-              <Departments />
+              <IncidentForm />
             </ProtectedRoute>
           }
         />
         
         <Route
+          path="/quality"
+          element={
+            <ProtectedRoute requiredDepartment={34}>
+              <>
+                <Header />
+                <Quality />
+              </>
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/departments/:departmentId"
+          element={
+            <ProtectedRoute>
+              <>
+                <Header />
+                <Departments />
+              </>
+            </ProtectedRoute>
+          }
+        />
+                
+        <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Header />
-              <Dashboard />
+              <>
+                <Header />
+                <Dashboard />
+              </>
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/settings"
+          path="/it-department"
           element={
-            <ProtectedRoute>
-              <Header />
-              <Settings />
+            <ProtectedRoute requiredDepartment={39}>
+              <>
+                <Header />
+                <ITDepartment />
+              </>
             </ProtectedRoute>
           }
         />
+        
+        <Route
+          path="/add-user"
+          element={
+            <ProtectedRoute>
+              <>
+                <Header />
+                <AddUser />
+              </>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default routes */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );
