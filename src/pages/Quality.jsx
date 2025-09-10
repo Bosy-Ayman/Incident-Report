@@ -620,7 +620,7 @@ getActionButton = (incident) => {
                 this.handleReviewedByManager();
               });
             }}
-            style={{ marginLeft: "10px" }}
+            style={{marginLeft: "10px" }}
           >
             Reviewed
           </button>
@@ -801,6 +801,12 @@ getActionButton = (incident) => {
                         : "—"}
                     </p>
                     <p>
+                      <strong>Date Submitted :</strong>{" "}
+                      {selectedIncident.IncidentDateSubmitted
+                        ? new Date(selectedIncident.IncidentDateSubmitted).toLocaleDateString()
+                        : "—"}
+                    </p>
+                    <p>
                       <strong>Incident Time:</strong>{" "}
                       {selectedIncident.IncidentTime
                         ? new Date(selectedIncident.IncidentTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -808,8 +814,12 @@ getActionButton = (incident) => {
                     </p>
                     <p><strong>Location:</strong> {selectedIncident.Location || "—"}</p>
                     <p className="span-2">
-                      <strong>Affected Individuals:</strong> {selectedIncident.AffectedIndividualsNames || "—"}
+                      <strong>Affected Individuals:</strong>{" "}
+                      {selectedIncident.AffectedIndividualsType || selectedIncident.AffectedIndividualsNames
+                        ? `${selectedIncident.AffectedIndividualsType ? selectedIncident.AffectedIndividualsType + (selectedIncident.AffectedIndividualsNames ? ": " : "") : ""}${selectedIncident.AffectedIndividualsNames || ""}`
+                        : "—"}
                     </p>
+
                     <p className="span-2">
                       <strong>Incident Description:</strong> {selectedIncident.IncidentDescription || "—"}
                     </p>
@@ -919,20 +929,26 @@ getActionButton = (incident) => {
                   <table className="modal-table">
                     <thead>
                       <tr>
-                        <th>Due Date</th>
+                        <th>Response Date</th>
+                        
                         <th>Incident Most Probable Causes</th>
                         <th>Corrective / Preventive Action</th>
                         <th>Department</th>
+                        <th>Due Date</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedIncident?.Response?.length > 0 ? (
                         selectedIncident.Response.map((resp, index) => (
                           <tr key={index}>
+
                             <td>{resp.ResponseDate ? new Date(resp.ResponseDate).toLocaleDateString() : "-"}</td>
                             <td>{resp.Reason || "—"}</td>
+                          
                             <td>{resp.CorrectiveAction || "—"}</td>
                             <td>{resp.DepartmentName || "—"}</td>
+                            <td>{resp.DueDate ? new Date(resp.DueDate).toLocaleDateString() : "-"}</td>
+
                           </tr>
                         ))
                       ) : (

@@ -9,6 +9,7 @@ import ITDepartment from "./pages/ITDepartment";
 import Header from "./components/Header";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AddUser from "./pages/AddUser";
+import AddDepartment from "./pages/AddDepartment";
 
 function App() {
   console.log("App: Rendering routes");
@@ -83,6 +84,17 @@ function App() {
               <>
                 <Header />
                 <AddUser />
+              </>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/departments"
+          element={
+            <ProtectedRoute requiredDepartment={39}>
+              <>
+                <Header />
+                <AddDepartment />
               </>
             </ProtectedRoute>
           }

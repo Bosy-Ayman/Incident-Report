@@ -1,0 +1,61 @@
+.add-department-page {
+  padding: 2rem;
+  max-width: 500px;
+  margin: 0 auto;
+  padding-top: 100px;
+}
+
+.add-department-container {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.add-department-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.add-department-form .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.add-department-form.form-group label {
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+}
+
+.add-department-form .form-group input {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.add-department-form .form-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.add-department-form .form-buttons button {
+  padding: 0.7rem 0.7rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.save-btn {
+  background:  #388fb5;
+  color: white;
+}
+
+.save-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+

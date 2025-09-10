@@ -38,7 +38,7 @@ function requireDepartmentAccess(req, res, next) {
   const userDept = req.session.user.departmentId;
 
   if (requestedDept !== userDept) {
-    return res.status(403).json({ status: "error", message: "Forbidden" });
+    return res.status(403).json({ status: "error", message: "" });
   }
   next();
 }
@@ -50,16 +50,16 @@ function requireLogin(req, res, next) {
 }
 
 function requireQualityDepartment(req, res, next) {
-  if (req.session.user.departmentId !== 34) {
+  if (req.session.user.departmentId !== 34 && req.session.user.departmentId !== 39 ) {
     return res.status(403).json({ status: "error", message: "Forbidden" });
   }
   next();
 }
-
 //------------------------------Handle adding attachments------- 
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "public", "uploads")); // save here
+    cb(null, path.join(__dirname, "public", "uploads"));
   },
   filename: (req, file, cb) => {
     const timestamp = Date.now();
@@ -68,9 +68,10 @@ const storage = multer.diskStorage({
   }
 });
 
-
-// Define upload using the storage
-const upload = multer({ storage: storage });
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 20 * 1024 * 1024 } // 20MB limit
+});
 
 // Route
 
@@ -80,19 +81,9 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
   let pool;
   try {
     pool = await sql.connect(dbConfig);
-    
-    console.log("Headers:", req.headers);
-    console.log("Content-Type:", req.get('content-type'));
-    console.log("req.body:", req.body);
-    console.log("req.files:", req.files);
-    
-    // Check if req.body exists and has the required fields
+
     if (!req.body) {
-      console.error("req.body is undefined");
-      return res.status(400).json({ 
-        status: "error", 
-        message: "No form data received" 
-      });
+      return res.status(400).json({ status: "error", message: "No form data received" });
     }
 
     const {
@@ -110,40 +101,32 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
       employeeChecked,
       employee_name,
       visitorChecked,
-      visitor_name
+      visitor_name,
     } = req.body;
 
-    console.log("Parsed fields:", {
-      reporter_name,
-      reporter_title,
-      incident_date,
-      location,
-      description
-    });
-
-    // Validate required fields
+    // Required fields check
     if (!reporter_name || !reporter_title || !incident_date || !location || !description) {
       return res.status(400).json({ 
         status: "error", 
         message: "Missing required fields: reporter_name, reporter_title, incident_date, location, or description" 
       });
     }
-
-    // Process report time
+    // Process report_time
     const reportDatetime = report_time ? new Date(report_time) : new Date();
     const reportDate = reportDatetime.toISOString().split("T")[0];
     const reportTimeOnly = reportDatetime.toTimeString().split(" ")[0];
 
-   let result = await pool.request()
-  .input("Name", sql.NVarChar, reporter_name)
-  .input("Title", sql.NVarChar, reporter_title)
-  .input("ReportDate", sql.Date, reportDate)
-  .input("ReportTime", sql.Time, reportTimeOnly)
-  .query(`
-    INSERT INTO Reporters (Name, Title, ReportDate, ReportTime)
-    VALUES (@Name, @Title, @ReportDate, @ReportTime);
-    SELECT SCOPE_IDENTITY() AS id;
-  `);
+    // Insert reporter
+    let result = await pool.request()
+    .input("Name", sql.NVarChar, reporter_name)
+    .input("Title", sql.NVarChar, reporter_title)
+    .input("ReportDate", sql.Date, reportDate)
+    .input("ReportTime", sql.Time, reportTimeOnly)
+   .query(`
+      INSERT INTO Reporters (Name, Title, ReportDate, ReportTime)
+      VALUES (@Name, @Title, @ReportDate, @ReportTime);
+      SELECT SCOPE_IDENTITY() AS id;
+    `);
 
 
     const reporter_id = result.recordset[0].id;
@@ -152,19 +135,21 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
     result = await pool.request()
       .input("ReporterID", sql.Int, reporter_id)
       .input("IncidentDate", sql.Date, incident_date)
-      .input("IncidentTime", sql.Time, incident_time)
+      .input("IncidentTime", sql.Time, incident_time || null)
       .input("Location", sql.NVarChar, location)
       .input("Description", sql.NVarChar, description)
       .input("ImmediateAction", sql.NVarChar, immediate_action || null)
+      .input("IncidentDateSubmitted", sql.DateTime, new Date())
+
       .query(`
-        INSERT INTO Incidents (ReporterID, IncidentDate, IncidentTime, Location, Description, ImmediateAction)
-        VALUES (@ReporterID, @IncidentDate, @IncidentTime, @Location, @Description, @ImmediateAction);
+        INSERT INTO Incidents (ReporterID, IncidentDate, IncidentTime, Location, Description, ImmediateAction, IncidentDateSubmitted)
+        VALUES (@ReporterID, @IncidentDate, @IncidentTime, @Location, @Description, @ImmediateAction, @IncidentDateSubmitted);
         SELECT SCOPE_IDENTITY() AS id;
       `);
 
     const incident_id = result.recordset[0].id;
 
-    // Insert attachments if exist
+    // Attachments
     if (req.files && req.files.length > 0) {
       for (const file of req.files) {
         await pool.request()
@@ -177,7 +162,7 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
       }
     }
 
-    // Insert affected individuals
+    // Affected Individuals
     if (patientChecked === 'true' && patient_name && mrn) {
       await pool.request()
         .input("IncidentID", sql.Int, incident_id)
@@ -219,8 +204,6 @@ app.post("/incident-form", upload.array("attachment"), async (req, res) => {
   }
 });
 
-// ...
-
 // ------------------------------------------- UPDATE INCIDENT FOR QUALITY -------------------------------------------
 
 app.get("/quality" ,requireLogin,async (req, res) => {
@@ -230,93 +213,104 @@ app.get("/quality" ,requireLogin,async (req, res) => {
     pool = await sql.connect(dbConfig);
 
   const query = `
-  WITH IncidentBase AS (
-      SELECT 
-          i.IncidentID,
-          i.IncidentDate,
-          i.IncidentTime,
-          i.Location,
-          r.Name AS ReporterName,
-          r.Title AS ReporterTitle,
-          r.ReportDate,
-          r.ReportTime,
-          i.Description AS IncidentDescription,
-          i.status,
-          i.responded,
-          i.DepartmentID,
-          i.ImmediateAction,
-          d.DepartmentName,
-          STRING_AGG(a.Attachment, ', ') AS Attachment
-      FROM Incidents i
-      JOIN Reporters r ON i.ReporterID = r.ReporterID
-      LEFT JOIN IncidentDepartments id ON i.IncidentID = id.IncidentID
-      LEFT JOIN Departments d ON id.DepartmentID = d.DepartmentID
-      LEFT JOIN Attachments a ON i.IncidentID = a.IncidentID
-      GROUP BY 
-          i.IncidentID,
-          i.IncidentDate,
-          i.IncidentTime,
-          i.Location,
-          r.Name,
-          r.Title,
-          r.ReportDate,
-          r.ReportTime,
-          i.Description,
-          i.status,
-          i.responded,
-          i.DepartmentID,
-          i.ImmediateAction,
-          d.DepartmentName
-  ),
-  QualityData AS (
-      SELECT 
-          q.IncidentID,
-          q.ReviewedFlag,
-          q.feedbackdate AS FeedbackDate,
-          q.ReviewedDate,
-          q.Type AS FeedbackType,
-          q.Categorization AS FeedbackCategorization,
-          q.RiskScoring AS FeedbackRiskScoring,
-          q.EffectivenessResult AS FeedbackEffectiveness,
-          q.QualityID,
-          u.UserName AS QualitySpecialistName,
-          CASE WHEN q.FeedbackFlag = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
-          ROW_NUMBER() OVER (PARTITION BY q.IncidentID ORDER BY q.feedbackdate DESC) as rn
-      FROM QualityReviews q
-      LEFT JOIN Users u ON TRY_CAST(u.UserID AS int) = q.QualityID
-  )
-  SELECT 
-      ib.*,
-      COALESCE(qd.ReviewedFlag, 'false') AS ReviewedFlag,
-      qd.FeedbackDate,
-      qd.ReviewedDate,
-      qd.FeedbackType,
-      qd.FeedbackCategorization,
-      qd.FeedbackRiskScoring,
-      qd.FeedbackEffectiveness,
-      qd.QualityID,
-      qd.QualitySpecialistName,
-      COALESCE(qd.FeedbackFlag, 0) AS FeedbackFlag,
+ WITH IncidentBase AS (
+    SELECT 
+        i.IncidentID,
+        i.IncidentDate,
+        i.IncidentTime,
+        i.Location,
+        r.Name AS ReporterName,
+        r.Title AS ReporterTitle,
+        r.ReportDate,
+        r.ReportTime,
+        i.Description AS IncidentDescription,
+        i.status,
+        i.responded,
+        i.DepartmentID,
+        i.ImmediateAction,
+        i.IncidentDateSubmitted,
+        d.DepartmentName,
+        STRING_AGG(a.Attachment, ', ') AS Attachment
+    FROM Incidents i
+    JOIN Reporters r ON i.ReporterID = r.ReporterID
+    LEFT JOIN IncidentDepartments id ON i.IncidentID = id.IncidentID
+    LEFT JOIN Departments d ON id.DepartmentID = d.DepartmentID
+    LEFT JOIN Attachments a ON i.IncidentID = a.IncidentID
+    GROUP BY 
+        i.IncidentID,
+        i.IncidentDate,
+        i.IncidentTime,
+        i.Location,
+        r.Name,
+        r.Title,
+        r.ReportDate,
+        r.ReportTime,
+        i.Description,
+        i.status,
+        i.responded,
+        i.DepartmentID,
+        i.ImmediateAction,
+        i.IncidentDateSubmitted,
+        d.DepartmentName
+),
+QualityData AS (
+    SELECT 
+        q.IncidentID,
+        q.ReviewedFlag,
+        q.feedbackdate AS FeedbackDate,
+        q.ReviewedDate,
+        q.Type AS FeedbackType,
+        q.Categorization AS FeedbackCategorization,
+        q.RiskScoring AS FeedbackRiskScoring,
+        q.EffectivenessResult AS FeedbackEffectiveness,
+        q.QualityID,
+        u.UserName AS QualitySpecialistName,
+        CASE WHEN q.FeedbackFlag = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
+        ROW_NUMBER() OVER (PARTITION BY q.IncidentID ORDER BY q.feedbackdate DESC) as rn
+    FROM QualityReviews q
+    LEFT JOIN Users u ON TRY_CAST(u.UserID AS int) = q.QualityID
+)
+SELECT 
+    ib.*,
+    COALESCE(qd.ReviewedFlag, 'false') AS ReviewedFlag,
+    qd.FeedbackDate,
+    qd.ReviewedDate,
+    qd.FeedbackType,
+    qd.FeedbackCategorization,
+    qd.FeedbackRiskScoring,
+    qd.FeedbackEffectiveness,
+    qd.QualityID,
+    qd.QualitySpecialistName,
+    COALESCE(qd.FeedbackFlag, 0) AS FeedbackFlag,
 
-      (
-          SELECT dr.ResponseID, dr.Reason, dr.CorrectiveAction, dr.ResponseDate, dr.DueDate, d2.DepartmentName
-          FROM DepartmentResponse dr
-          LEFT JOIN Departments d2 ON dr.DepartmentID = d2.DepartmentID
-          WHERE dr.IncidentID = ib.IncidentID
-          FOR JSON PATH
-      ) AS Responses,
+    -- Department responses as JSON
+    (
+        SELECT dr.ResponseID, dr.Reason, dr.CorrectiveAction, dr.ResponseDate, dr.DueDate, d2.DepartmentName
+        FROM DepartmentResponse dr
+        LEFT JOIN Departments d2 ON dr.DepartmentID = d2.DepartmentID
+        WHERE dr.IncidentID = ib.IncidentID
+        FOR JSON PATH
+    ) AS Responses,
 
-      -- Affected individuals list
-      STUFF((
-          SELECT ', ' + ai2.Name
-          FROM AffectedIndividuals ai2
-          WHERE ai2.IncidentID = ib.IncidentID
-          FOR XML PATH(''), TYPE
-      ).value('.', 'NVarChar(MAX)'), 1, 2, '') AS AffectedIndividualsNames
+    -- Affected individuals
+    STUFF((
+        SELECT ', ' + ai2.Name
+        FROM AffectedIndividuals ai2
+        WHERE ai2.IncidentID = ib.IncidentID
+        FOR XML PATH(''), TYPE
+    ).value('.', 'NVarChar(MAX)'), 1, 2, '') AS AffectedIndividualsNames,
 
-  FROM IncidentBase ib
-  LEFT JOIN QualityData qd ON ib.IncidentID = qd.IncidentID AND qd.rn = 1
-  ORDER BY ib.IncidentID DESC;
+    STUFF((
+        SELECT ', ' + ai2.Type
+        FROM AffectedIndividuals ai2
+        WHERE ai2.IncidentID = ib.IncidentID
+        FOR XML PATH(''), TYPE
+    ).value('.', 'NVarChar(MAX)'), 1, 2, '') AS AffectedIndividualsType
+
+FROM IncidentBase ib
+LEFT JOIN QualityData qd ON ib.IncidentID = qd.IncidentID AND qd.rn = 1
+ORDER BY ib.IncidentID DESC;
+
 `;
 
 
@@ -381,7 +375,6 @@ app.get("/assigned-departments",requireLogin, async (req, res) => {
 // ====================== UPDATE INCIDENT (store DepartmentID) ======================
 
 app.put("/quality", requireLogin,async (req, res) => {
-  // Check authentication from either session or token
   let isAuthenticated = false;
   let userDeptId = null;
 
@@ -396,10 +389,16 @@ app.put("/quality", requireLogin,async (req, res) => {
     return res.status(401).json({ status: "error", message: "Unauthorized" });
   }
 
-  // Check if user is from Quality Management department (ID 34)
-  if (userDeptId && userDeptId !== 34) {
-    return res.status(403).json({ status: "error", message: "Only Quality Management can assign departments" });
-  }
+  // Check if user is from Quality Management department (ID 34,)
+const allowedDepts = [34, 39];
+
+if (userDeptId && !allowedDepts.includes(userDeptId)) {
+  return res.status(403).json({
+    status: "error",
+    message: "Only Quality Management can assign departments"
+  });
+}
+
 
   const { incidentId, departmentId } = req.body;
 
@@ -764,7 +763,7 @@ app.post("/quality-feedback", requireLogin, requireQualityDepartment, async (req
 });
 
 //------------------------------ GET incidents for a specific department-------------------------------
-app.get("/departments/:departmentId",requireLogin, async (req, res) => {
+app.get("/departments/:departmentId", requireLogin, async (req, res) => {
   const { departmentId } = req.params;
   let pool;
   try {
@@ -772,72 +771,80 @@ app.get("/departments/:departmentId",requireLogin, async (req, res) => {
     const result = await pool.request()
       .input("departmentId", sql.Int, departmentId)
       .query(`
-          SELECT 
-        i.IncidentID,
-        i.IncidentDate,
-        i.IncidentTime,
-        i.Location,
-        r.Name AS ReporterName,
-        r.Title AS ReporterTitle,
-        i.Description,
-        i.status,
-        i.responded,
-        i.DepartmentID,
-        d.DepartmentName,
-        id.RespondedFlag,
-        -- Attachments as subquery
-        (
-          SELECT STRING_AGG(a.Attachment, ', ')
-          FROM Attachments a
-          WHERE a.IncidentID = i.IncidentID
-        ) AS Attachment,
-        -- Department responses
-        (
-          SELECT dr.ResponseID, dr.IncidentID, dr.DepartmentID, dr.Reason,
-                dr.CorrectiveAction, dr.ResponseDate, dr.DueDate, d2.DepartmentName
-          FROM DepartmentResponse dr
-          LEFT JOIN Departments d2 ON dr.DepartmentID = d2.DepartmentID
-          WHERE dr.IncidentID = i.IncidentID
-          FOR JSON PATH
-        ) AS Responses,
-        -- Quality review
-        q.Type AS FeedbackType,
-        q.Categorization AS FeedbackCategorization,
-        q.RiskScoring AS FeedbackRiskScoring,
-        q.EffectivenessResult AS FeedbackEffectiveness,
-        q.QualityID,
-        u.UserName AS QualitySpecialistName,
-        CASE WHEN q.FeedbackFlag = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
-        CASE WHEN q.ReviewedFlag = 'true' THEN 1 ELSE 0 END AS ReviewedFlag,
-        -- Affected individuals
-        STUFF((SELECT ', ' + ai2.Name
+        SELECT 
+          i.IncidentID,
+          i.IncidentDate,
+          i.IncidentTime,
+          i.IncidentDateSubmitted, -- Added
+          i.Location,
+          r.Name AS ReporterName,
+          r.Title AS ReporterTitle,
+          i.Description AS IncidentDescription,
+          i.status,
+          i.responded,
+          i.DepartmentID,
+          d.DepartmentName,
+          id.RespondedFlag,
+          (
+            SELECT STRING_AGG(a.Attachment, ', ')
+            FROM Attachments a
+            WHERE a.IncidentID = i.IncidentID
+          ) AS Attachment,
+          (
+            SELECT 
+              dr.ResponseID, 
+              dr.IncidentID, 
+              dr.DepartmentID, 
+              dr.Reason,
+              dr.CorrectiveAction, 
+              dr.ResponseDate, 
+              dr.DueDate, 
+              d2.DepartmentName
+            FROM DepartmentResponse dr
+            LEFT JOIN Departments d2 ON dr.DepartmentID = d2.DepartmentID
+            WHERE dr.IncidentID = i.IncidentID
+            FOR JSON PATH
+          ) AS Responses,
+          q.Type AS FeedbackType,
+          q.Categorization AS FeedbackCategorization,
+          q.RiskScoring AS FeedbackRiskScoring,
+          q.EffectivenessResult AS FeedbackEffectiveness,
+          q.feedbackdate AS FeedbackDate, -- Added (note the lowercase 'feedbackdate' to match /quality)
+          q.QualityID,
+          u.UserName AS QualitySpecialistName,
+          CASE WHEN q.FeedbackFlag = 'true' THEN 1 ELSE 0 END AS FeedbackFlag,
+          CASE WHEN q.ReviewedFlag = 'true' THEN 1 ELSE 0 END AS ReviewedFlag,
+          STUFF(
+            (
+              SELECT ', ' + ai2.Name
               FROM AffectedIndividuals ai2
               WHERE ai2.IncidentID = i.IncidentID
-              FOR XML PATH(''), TYPE).value('.', 'NVarChar(MAX)'), 1, 2, '') AS AffectedIndividualsNames
-    FROM Incidents i
-    JOIN Reporters r ON i.ReporterID = r.ReporterID
-    JOIN IncidentDepartments id ON i.IncidentID = id.IncidentID
-    LEFT JOIN Departments d ON id.DepartmentID = d.DepartmentID
-    LEFT JOIN QualityReviews q ON q.IncidentID = i.IncidentID
-    LEFT JOIN Users u ON q.QualityID = TRY_CAST(u.UserID AS int)
-    WHERE id.DepartmentID = @departmentId
-    ORDER BY i.IncidentID DESC;
-
+              FOR XML PATH(''), TYPE
+            ).value('.', 'NVarChar(MAX)'), 1, 2, ''
+          ) AS AffectedIndividualsNames
+        FROM Incidents i
+        JOIN Reporters r ON i.ReporterID = r.ReporterID
+        JOIN IncidentDepartments id ON i.IncidentID = id.IncidentID
+        LEFT JOIN Departments d ON id.DepartmentID = d.DepartmentID
+        LEFT JOIN QualityReviews q ON q.IncidentID = i.IncidentID
+        LEFT JOIN Users u ON q.QualityID = TRY_CAST(u.UserID AS int)
+        WHERE id.DepartmentID = @departmentId
+        ORDER BY i.IncidentID DESC;
       `);
 
     console.log(`Found ${result.recordset.length} incidents for department ${departmentId}`);
     
-    // Debug: Log first few records
     if (result.recordset.length > 0) {
       console.log("Sample record:", {
         IncidentID: result.recordset[0].IncidentID,
         DepartmentName: result.recordset[0].DepartmentName,
+        IncidentDateSubmitted: result.recordset[0].IncidentDateSubmitted,
+        FeedbackDate: result.recordset[0].FeedbackDate,
         Responses: result.recordset[0].Responses,
         RespondedFlag: result.recordset[0].RespondedFlag
       });
     }
 
-    // Deduplicate incidents to avoid multiple rows per IncidentID
     const uniqueIncidents = [];
     const seenIds = new Set();
     for (const incident of result.recordset) {
@@ -1013,12 +1020,15 @@ app.put("/quality/close-incident", requireLogin, async (req, res) => {
   let pool;
   try {
     pool = await sql.connect(dbConfig);
+    const DoneDate = new Date();
 
     await pool.request()
       .input("IncidentID",sql.Int, IncidentID)
+      .input("DoneDate",sql.DateTime, DoneDate)
       .query(`
         UPDATE Incidents
-        SET status = 'Done'
+        SET status = 'Done',
+        DoneDate = @DoneDate
         WHERE IncidentID = @IncidentID
       `);
 
@@ -1090,25 +1100,24 @@ app.get("/affected-types", requireLogin, async (req, res) => {
 });
 
 //-------------------LineChart: Incident Count per Day-------------------------
-app.get("/incident-per-date", requireLogin, async (req, res) => {
+app.get("/incident-per-date", async (req, res) => {
   let pool;
   try {
     pool = await sql.connect(dbConfig);
+
     const query = `
-      WITH Dates AS (
-        SELECT DISTINCT IncidentDate
-        FROM Incidents
-      )
-      SELECT 
-          d.IncidentDate,
-          COALESCE(SUM(CASE WHEN i.status = 'New' THEN 1 ELSE 0 END), 0) AS NewIncidentCount,
-          COALESCE(SUM(CASE WHEN i.status = 'Assigned' THEN 1 ELSE 0 END), 0) AS AssignedIncidentCount,
-          COALESCE(SUM(CASE WHEN i.status = 'Pending' THEN 1 ELSE 0 END), 0) AS PendingIncidentCount,
-          COALESCE(SUM(CASE WHEN i.status = 'Done' THEN 1 ELSE 0 END), 0) AS ClosedIncidentCount
-      FROM Dates d
-      LEFT JOIN Incidents i ON i.IncidentDate = d.IncidentDate
-      GROUP BY d.IncidentDate
-      ORDER BY d.IncidentDate;
+      SELECT
+          d.DepartmentName,
+          COUNT(i.IncidentID) AS IncidentCount,
+          AVG(CAST(DATEDIFF(MINUTE, i.IncidentDateSubmitted, i.DoneDate) AS FLOAT)/60.0) AS AvgResolutionHours
+      FROM Incidents i
+      LEFT JOIN DepartmentResponse dr ON i.IncidentID = dr.IncidentID
+      LEFT JOIN Departments d ON dr.DepartmentID = d.DepartmentID
+      WHERE i.DoneDate IS NOT NULL
+      GROUP BY d.DepartmentName
+      ORDER BY AvgResolutionHours DESC;
+
+
     `;
 
     const result = await pool.request().query(query);
@@ -1121,6 +1130,7 @@ app.get("/incident-per-date", requireLogin, async (req, res) => {
     if (pool) await pool.close();
   }
 });
+
 
 //-------------------PieChart: Responded or Not----------------------------
 app.get("/if-responded", requireLogin, async (req, res) => {
@@ -1410,7 +1420,7 @@ app.put("/users", async (req, res) => {
   }
 });
 /*--------------------------------*/
-// CREATE USER (POST)
+
 app.post("/users", async (req, res) => {
   let { UserID, UserName, DepartmentID, PhoneNumber, Email, Password } = req.body;
 
@@ -1500,35 +1510,30 @@ app.post("/users", async (req, res) => {
 
 //---------------- Check whether the userID exist in the database or not (needed for inserting a new user)-----
 
-// Add this endpoint to your backend code
-app.get("/check-userid/:userId", async (req, res) => {
-  const { userId } = req.params;
+app.post('/departments',requireLogin, async (req, res) => {
+  const { DepartmentName } = req.body;
 
-  if (!userId) {
-    return res.status(400).json({ 
-      status: 'error', 
-      message: 'UserID is required' 
-    });
+  // Validate input
+  if (!DepartmentName) {
+    return res.status(400).json({ status: 'error', message: 'Department Name is required' });
   }
 
   let pool;
   try {
     pool = await sql.connect(dbConfig);
     
-    const result = await pool.request()
-      .input("UserID", sql.VarChar(10), userId.trim())
-      .query("SELECT UserID FROM Users WHERE UserID = @UserID");
+    await pool
+      .request()
+      .input('DepartmentName', sql.NVarChar, DepartmentName)
+      .query(`
+        INSERT INTO Departments (DepartmentName)
+        VALUES (@DepartmentName);
+      `);
 
-    res.json({ 
-      exists: result.recordset.length > 0 
-    });
-
-  } catch (error) {
-    console.error("Error checking UserID:", error);
-    res.status(500).json({ 
-      status: "error", 
-      message: "Database error while checking UserID" 
-    });
+    res.json({ status: 'success', message: 'Department added successfully' });
+  } catch (err) {
+    console.error('Error adding department:', err);
+    res.status(500).json({ status: 'error', message: 'Failed to add department' });
   } finally {
     if (pool) await pool.close();
   }

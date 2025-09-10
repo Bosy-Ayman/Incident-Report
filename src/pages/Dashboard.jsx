@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart } from '@mui/x-charts/BarChart';
 import { PieChart } from '@mui/x-charts/PieChart';
-import { LineChart } from '@mui/x-charts/LineChart';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -14,19 +13,29 @@ import '../components/Loading.css';
 export default function Dashboard() {
   const [data, setData] = useState({
     barData: null,
+    barData2: null,
     pieData: null,
     pieData2: null,
-    lineData: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const cards = [
-    { id: 1, title: 'New incidents' },
+    { id: 1, title: 'New Incidents' },
     { id: 2, title: 'Assigned Incidents' },
     { id: 3, title: 'Pending Incidents' },
     { id: 4, title: 'Closed Incidents' },
   ];
+  const chartSetting = {
+  xAxis: [
+    {
+      label: 'rainfall (mm)',
+    },
+  ],
+  height: 400,
+  margin: { left: 0 },
+};
+
 
   const fetchData = async (url) => {
     try {
@@ -51,36 +60,36 @@ export default function Dashboard() {
         fetchData('/if-responded'),
       ]);
 
-      // Process LineChart data
-      const lineData =
-        lineRaw?.map
-          ? (() => {
-              const filtered = lineRaw
-                .filter(row => row.IncidentDate && !isNaN(new Date(row.IncidentDate).getTime()))
-                .sort((a, b) => new Date(a.IncidentDate) - new Date(b.IncidentDate));
-              return {
-                xLabels: filtered.map(row =>
-                  new Date(row.IncidentDate).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  })
-                ),
-                newCounts: filtered.map(row => row.NewIncidentCount ?? 0),
-                assignedCounts: filtered.map(row => row.AssignedIncidentCount ?? 0),
-                pendingCounts: filtered.map(row => row.PendingIncidentCount ?? 0),
-                closedCounts: filtered.map(row => row.ClosedIncidentCount ?? 0),
-              };
-            })()
-          : null;
+      // Process BarChart data for average resolution time from /incident-per-date
+      const barData2 = lineRaw
+        ? {
+            departments: lineRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.DepartmentName),
+            avgtime: lineRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.AvgResolutionHours ?? 0),
+            incidentCounts: lineRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.IncidentCount ?? 0),
+          }
+        : null;
 
-      // Process BarChart data
+      // Process BarChart data for departments
       const barData = barRaw
         ? {
-            departments: barRaw.map(row => row.DepartmentName),
-            assignedCounts: barRaw.map(row => row.AssignedCount ?? 0),
-            pendingCounts: barRaw.map(row => row.PendingCount ?? 0),
-            closedCounts: barRaw.map(row => row.ClosedCount ?? 0),
+            departments: barRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.DepartmentName),
+            assignedCounts: barRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.AssignedCount ?? 0),
+            pendingCounts: barRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.PendingCount ?? 0),
+            closedCounts: barRaw
+              .filter(row => row.DepartmentName !== null && row.DepartmentName !== 'null')
+              .map(row => row.ClosedCount ?? 0),
           }
         : null;
 
@@ -109,46 +118,46 @@ export default function Dashboard() {
           ]
         : null;
 
-      setData({ lineData, barData, pieData, pieData2 });
+      setData({ barData, barData2, pieData, pieData2 });
       setLoading(false);
     };
 
     loadAllData();
   }, []);
 
-if (loading) {
-  return (
-    <div 
-      className="protected-container" 
-      style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
-    >
-      <div className="loader"></div>
-    </div>
-  );
-}
+  if (loading) {
+    return (
+      <div
+        className="protected-container"
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+      >
+        <div className="loader"></div>
+      </div>
+    );
+  }
 
-if (error) {
-  return (
-    <Typography 
-      color="error" 
-      sx={{ textAlign: 'center', mt: 4 }}
-    >
-      {error}
-    </Typography>
-  );
-}
+  if (error) {
+    return (
+      <Typography
+        color="error"
+        sx={{ textAlign: 'center', mt: 4 }}
+      >
+        {error}
+      </Typography>
+    );
+  }
 
   const getTotalForCard = (cardTitle) => {
-    const { lineData, barData } = data;
+    const { barData, barData2 } = data; // Added barData2 to destructuring
     switch (cardTitle) {
-      case 'New incidents':
-        return lineData.newCounts.reduce((a, b) => a + b, 0);
+      case 'New Incidents':
+        return barData2?.incidentCounts?.reduce((a, b) => a + b, 0) ?? 0; // Use incidentCounts
       case 'Assigned Incidents':
-        return barData.assignedCounts.reduce((a, b) => a + b, 0);
+        return barData?.assignedCounts?.reduce((a, b) => a + b, 0) ?? 0;
       case 'Pending Incidents':
-        return barData.pendingCounts.reduce((a, b) => a + b, 0);
+        return barData?.pendingCounts?.reduce((a, b) => a + b, 0) ?? 0;
       case 'Closed Incidents':
-        return barData.closedCounts.reduce((a, b) => a + b, 0);
+        return barData?.closedCounts?.reduce((a, b) => a + b, 0) ?? 0;
       default:
         return 0;
     }
@@ -171,66 +180,77 @@ if (error) {
       </div>
 
       {/* Charts */}
-     {/* Charts */}
-<div className="charts-container">
-  {/* Bar Chart */}
-  <div className="bar-chart-1">
-    <Typography variant="h6">Incidents per Department</Typography>
-    <BarChart
-      height={300}
-      series={[
-        { data: data.barData.assignedCounts, label: 'Assigned', stack: 'total' },
-        { data: data.barData.pendingCounts, label: 'Pending', stack: 'total' },
-        { data: data.barData.closedCounts, label: 'Done', stack: 'total' },
-      ]}
-      xAxis={[{ data: data.barData.departments, scaleType: 'band' }]}
-      yAxis={[{ width: 50 }]}
-    />
-  </div>
+      <div className="charts-container">
+        {/* Bar Chart 1: Incidents per Department */}
+        <div className="bar-chart-1">
+          <Typography variant="h6">Incidents per Department</Typography>
+          {data.barData && (
+            <BarChart
+              height={300}
+              series={[
+                { data: data.barData.assignedCounts, label: 'Assigned', stack: 'total' },
+                { data: data.barData.pendingCounts, label: 'Pending', stack: 'total' },
+                { data: data.barData.closedCounts, label: 'Done', stack: 'total' },
+              ]}
+              xAxis={[{ data: data.barData.departments, scaleType: 'band' }]}
+              yAxis={[{ width: 50 }]}
+              colors={['#3b98c0', '#f59e0b', '#16a34a']}
+            />
+          )}
+        </div>
 
-  {/* Line Chart */}
-  <div className="line-chart">
-    <Typography variant="h6">Incidents Over Time</Typography>
-    <LineChart
-      xAxis={[{ data: data.lineData.xLabels, scaleType: 'point' }]}
-      series={[
-        { data: data.lineData.newCounts, label: 'New Incidents', color: '#1976d2' },
-        { data: data.lineData.assignedCounts, label: 'Assigned', color: '#ff9800' },
-        { data: data.lineData.pendingCounts, label: 'Pending', color: '#f44336' },
-        { data: data.lineData.closedCounts, label: 'Closed', color: '#4caf50' },
-      ]}
-      height={300}
-      grid={{ vertical: true, horizontal: true }}
-    />
-  </div>
+        {/* Bar Chart 3: Average Resolution Time per Department */}
+        <div className="bar-chart-3">
+          <Typography variant="h6">Average Resolution Time per Department</Typography>
+          {data.barData2 && (
+            <BarChart
+              height={300}
+              layout="horizontal"
+              series={[
+                { data: data.barData2.avgtime, label: 'Avg Resolution Hours' },
+              ]}
+              
+              yAxis={[{ data: data.barData2.departments, scaleType: 'band' }]}
+              xAxis={[{ scaleType: 'linear' }]}
+              colors={['#1d83aeff']}
+              
+            />
+          )}
+        </div>
 
-  {/* Pie Chart 1 */}
-  <div className="pie-chart pie-chart-1">
-    <Typography variant="h6">Affected Individuals by Type</Typography>
-    <PieChart
-      width={300}
-      height={300}
-      series={data.pieData}
-      slotProps={{
-        legend: { direction: 'column', position: { vertical: 'middle', horizontal: 'right' }, padding: 0 },
-      }}
-    />
-  </div>
+        {/* Pie Chart 1 */}
+        <div className="pie-chart pie-chart-1">
+          <Typography variant="h6">Affected Individuals by Type</Typography>
+          {data.pieData && (
+            <PieChart
+              width={300}
+              height={300}
+              series={data.pieData}
+              slotProps={{
+                legend: { direction: 'column', position: { vertical: 'left', horizontal: 'right' } },
+              }}
+            />
+          )}
+        </div>
 
-  {/* Pie Chart 2 */}
-  <div className="pie-chart pie-chart-2">
-    <Typography variant="h6">Response Status</Typography>
-    <PieChart
-      width={300}
-      height={300}
-      series={data.pieData2}
-      slotProps={{
-        legend: { direction: 'column', position: { vertical: 'middle', horizontal: 'right' }, padding: 0 },
-      }}
-    />
-  </div>
-</div>
-
+        {/* Pie Chart 2 */}
+        <div className="pie-chart pie-chart-2">
+          <Typography variant="h6">Response Status</Typography>
+          {data.pieData2 && (
+            <PieChart
+              width={300}
+              height={300}
+              series={data.pieData2}
+              
+               layout="horizontal"
+              slotProps={{
+                legend: { direction: 'column', position: { vertical: 'left', horizontal: 'right' }, padding: 0 },
+              }}
+             
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

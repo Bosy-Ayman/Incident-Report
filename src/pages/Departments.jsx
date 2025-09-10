@@ -17,10 +17,10 @@ export default class Departments extends Component {
         statusFilter: "all",
         responseFilter: "all",
         dateFrom: "",
-        dateTo: ""
+        dateTo: "",
       },
       showDetailsModal: false,
-      showUpdateModal: false
+      showUpdateModal: false,
     };
   }
 
@@ -40,12 +40,12 @@ export default class Departments extends Component {
         fetch('/departments', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
+      if (!deptRes.ok) throw new Error(`Server error: ${deptRes.status}`);
+
       const deptData = await deptRes.json();
       const assignedData = await assignedRes.json();
       const qualityData = await qualityRes.json();
       const allDepartmentsData = await allDepartmentsRes.json();
-
-      if (!deptRes.ok) throw new Error(`Server error: ${deptRes.status}`);
 
       const allDepartmentsMap = (allDepartmentsData?.data || []).reduce((map, dept) => {
         map[dept.DepartmentID] = dept.DepartmentName;
@@ -67,7 +67,12 @@ export default class Departments extends Component {
 
         let responses = [];
         try {
-          responses = incident.Responses ? JSON.parse(incident.Responses) : [];
+          responses = incident.Responses
+            ? JSON.parse(incident.Responses).map(resp => ({
+                ...resp,
+                DueDate: resp.DueDate || "" // Ensure DueDate is always defined
+              }))
+            : [];
         } catch (err) {
           console.error(`Error parsing Responses for IncidentID ${incident.IncidentID}:`, err);
         }
@@ -78,10 +83,9 @@ export default class Departments extends Component {
           FeedbackCategorization: incident.FeedbackCategorization || "—",
           FeedbackRiskScoring: incident.FeedbackRiskScoring || "—",
           FeedbackEffectiveness: incident.FeedbackEffectiveness || "—",
-          FeedbackDate: incident.ResponseDate || "—",
+          FeedbackDate: incident.FeedbackDate || "—", // Use FeedbackDate instead of ResponseDate
           QualitySpecialistName: qMatch.QualitySpecialistName || "—",
-          ReviewedFlag: incident.ReviewedFlag === true || incident.ReviewedFlag === 1 ? "Yes" :
-                        incident.ReviewedFlag === false || incident.ReviewedFlag === 0 ? "No" : "—",
+          ReviewedFlag: incident.ReviewedFlag === true || incident.ReviewedFlag === 1 || incident.ReviewedFlag === "true" ? "Yes" : "No",
           AffectedIndividualsNames: qMatch.AffectedIndividualsNames || "—",
           ImmediateAction: qMatch.ImmediateAction || "—",
           IncidentDescription: qMatch.IncidentDescription || "—",
@@ -89,7 +93,8 @@ export default class Departments extends Component {
           assignedDepartmentIDs: assignedIDs,
           Response: responses,
           ResponseID: responses.find(r => r.DepartmentID === parseInt(departmentId))?.ResponseID || null,
-          RespondedFlag: incident.RespondedFlag || "false"
+          RespondedFlag: incident.responded === "Yes" || responses.length > 0 ? "true" : "false",
+          IncidentDateSubmitted: incident.IncidentDateSubmitted || "—",
         };
       });
 
@@ -98,7 +103,7 @@ export default class Departments extends Component {
         filteredIncidents: transformedIncidents,
         departmentName: transformedIncidents[0]?.DepartmentName || savedDeptName,
         departments: allDepartmentsData?.data || [],
-        isLoading: false
+        isLoading: false,
       });
     } catch (err) {
       console.error("Error loading incidents:", err);
@@ -109,25 +114,29 @@ export default class Departments extends Component {
 
   openDetailsModal = (incident) => this.setState({
     showDetailsModal: true,
-    selectedIncident: incident
+    selectedIncident: incident,
   });
 
   closeDetailsModal = () => this.setState({
     showDetailsModal: false,
     selectedIncident: null,
-    selectedDepartmentId: ""
+    selectedDepartmentId: "",
   });
 
-  openUpdateModal = (incident) => this.setState({
-    showUpdateModal: true,
-    selectedIncident: incident,
-    dueDate: incident.Response?.find(r => r.DepartmentID === parseInt(window.location.pathname.split("/").pop()))?.DueDate || ""
-  });
+  openUpdateModal = (incident) => {
+    const departmentId = parseInt(window.location.pathname.split("/").pop());
+    const response = incident.Response?.find(r => r.DepartmentID === departmentId);
+    this.setState({
+      showUpdateModal: true,
+      selectedIncident: incident,
+      dueDate: response?.DueDate || "",
+    });
+  };
 
   closeUpdateModal = () => this.setState({
     showUpdateModal: false,
     selectedIncident: null,
-    dueDate: ""
+    dueDate: "",
   });
 
   handleAssignDepartment = async () => {
@@ -193,8 +202,12 @@ export default class Departments extends Component {
 
     const probableCauses = e.target["probable-causes"].value;
     const correctiveAction = e.target["corrective-action"].value;
-    const urlParts = window.location.pathname.split("/");
-    const departmentId = parseInt(urlParts[urlParts.length - 1]);
+    const departmentId = parseInt(window.location.pathname.split("/").pop());
+
+    if (!dueDate) {
+      alert("Please select a due date.");
+      return;
+    }
 
     const body = {
       IncidentID: selectedIncident.IncidentID,
@@ -210,7 +223,7 @@ export default class Departments extends Component {
       const res = await fetch("/department-response", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
       const result = await res.json();
       if (res.ok) {
@@ -218,7 +231,15 @@ export default class Departments extends Component {
         this.setState((prevState) => {
           const updatedIncidents = prevState.incidents.map((inc) => {
             if (inc.IncidentID === selectedIncident.IncidentID) {
-              const newResponse = result.response;
+              const newResponse = {
+                ResponseID: result.response?.ResponseID || selectedIncident.ResponseID,
+                Reason: probableCauses,
+                CorrectiveAction: correctiveAction,
+                ResponseDate: new Date().toISOString().split("T")[0],
+                DueDate: dueDate,
+                DepartmentName: departmentName,
+                DepartmentID: departmentId,
+              };
               const updatedResponses = inc.Response ? inc.Response.filter(r => r.DepartmentID !== departmentId) : [];
               updatedResponses.push(newResponse);
               return {
@@ -227,7 +248,7 @@ export default class Departments extends Component {
                 status: "Pending",
                 responded: "Yes",
                 RespondedFlag: "true",
-                ResponseID: newResponse.ResponseID
+                ResponseID: newResponse.ResponseID,
               };
             }
             return inc;
@@ -257,14 +278,10 @@ export default class Departments extends Component {
   applyFilters = () => {
     const { incidents, filters } = this.state;
     const filtered = incidents.filter((inc) => {
-      if (filters.statusFilter !== "all" && inc.status !== filters.statusFilter) 
-        return false;
-      if (filters.responseFilter !== "all" && inc.responded.toLowerCase() !== filters.responseFilter.toLowerCase()) 
-        return false;
-      if (filters.dateFrom && new Date(inc.IncidentDate) < new Date(filters.dateFrom)) 
-        return false;
-      if (filters.dateTo && new Date(inc.IncidentDate) > new Date(filters.dateTo)) 
-        return false;
+      if (filters.statusFilter !== "all" && inc.status !== filters.statusFilter) return false;
+      if (filters.responseFilter !== "all" && inc.responded.toLowerCase() !== filters.responseFilter.toLowerCase()) return false;
+      if (filters.dateFrom && new Date(inc.IncidentDate) < new Date(filters.dateFrom)) return false;
+      if (filters.dateTo && new Date(inc.IncidentDate) > new Date(filters.dateTo)) return false;
       return true;
     });
     this.setState({ filteredIncidents: filtered });
@@ -273,25 +290,24 @@ export default class Departments extends Component {
   clearFilters = () => {
     this.setState({
       filters: { statusFilter: "all", responseFilter: "all", dateFrom: "", dateTo: "" },
-      filteredIncidents: this.state.incidents
+      filteredIncidents: this.state.incidents,
     });
   };
-  
 
   render() {
-    const { filteredIncidents, filters, showDetailsModal, showUpdateModal, selectedIncident, isLoading } = this.state;
+    const { filteredIncidents, filters, showDetailsModal, showUpdateModal, selectedIncident, isLoading, departmentName } = this.state;
 
     return (
       <div className="quality-dashboard">
         <main>
           {isLoading ? (
-      <div 
-        className="protected-container" 
-        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
-      >
-        <div className="loader"></div>
-      </div>
-      ) : (
+            <div
+              className="protected-container"
+              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}
+            >
+              <div className="loader"></div>
+            </div>
+          ) : (
             <>
               <div id="filters">
                 <label htmlFor="statusFilter">Status:</label>
@@ -331,17 +347,20 @@ export default class Departments extends Component {
                   {filteredIncidents.map((incident) => (
                     <tr key={incident.IncidentID}>
                       <td>{incident.IncidentID}</td>
-                      <td>{incident.IncidentDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
+                      <td>{incident.IncientDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
                       <td>{incident.Location || '-'}</td>
                       <td>{incident.ReporterName || '-'}</td>
                       <td className={`status-${incident.status.replace(/\s/g, "")}`}>{incident.status || '-'}</td>
                       <td>
                         <button className="btn-details" onClick={() => this.openDetailsModal(incident)}>Details</button>
                         {(incident.status === 'Assigned' || incident.status === 'Pending') && (
-                          <button 
-                          className="btn-update" 
-                          onClick={() => this.openUpdateModal(incident)} 
-                          style={{ marginLeft: "10px" }}>Update</button>
+                          <button
+                            className="btn-update"
+                            onClick={() => this.openUpdateModal(incident)}
+                            style={{ marginLeft: "10px" }}
+                          >
+                            Update
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -360,13 +379,19 @@ export default class Departments extends Component {
                         <p><strong>Incident No:</strong> {selectedIncident.IncidentID || "—"}</p>
                         <p>
                           <strong>Incident Date:</strong>{" "}
-                          {selectedIncident.IncidentDate
+                          {selectedIncident.IncidentDate && new Date(selectedIncident.IncidentDate).toString() !== "Invalid Date"
                             ? new Date(selectedIncident.IncidentDate).toLocaleDateString()
                             : "—"}
                         </p>
                         <p>
+                          <strong>Date Submitted:</strong>{" "}
+                          {selectedIncident.IncidentDateSubmitted && new Date(selectedIncident.IncidentDateSubmitted).toString() !== "Invalid Date"
+                            ? new Date(selectedIncident.IncidentDateSubmitted).toLocaleDateString()
+                            : "—"}
+                        </p>
+                        <p>
                           <strong>Incident Time:</strong>{" "}
-                          {selectedIncident.IncidentTime
+                          {selectedIncident.IncidentTime && new Date(selectedIncident.IncidentTime).toString() !== "Invalid Date"
                             ? new Date(selectedIncident.IncidentTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                             : "—"}
                         </p>
@@ -391,26 +416,20 @@ export default class Departments extends Component {
                     <div className="section">
                       <h3>Actions & Attachments</h3>
                       <p><strong>Immediate Action Taken:</strong> {selectedIncident.ImmediateAction || "—"}</p>
-                    {selectedIncident.Attachment && (
-                      <div>
-                        <strong>Attachments:</strong>
-                        <ul>
-                          {selectedIncident.Attachment.split(",").map((file, idx) => (
-                            <li key={idx}>
-                            <a 
-                              href={`/uploads/${file.trim()}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                            >
-                              {file.trim()}
-                            </a>
-
-
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      {selectedIncident.Attachment && (
+                        <div>
+                          <strong>Attachments:</strong>
+                          <ul>
+                            {selectedIncident.Attachment.split(",").map((file, idx) => (
+                              <li key={idx}>
+                                <a href={`/uploads/${file.trim()}`} target="_blank" rel="noopener noreferrer">
+                                  {file.trim()}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
 
                     <div className="section">
@@ -478,25 +497,27 @@ export default class Departments extends Component {
                       <table className="modal-table">
                         <thead>
                           <tr>
-                            <th>Due Date</th>
+                            <th>Response Date</th>
                             <th>Incident Most Probable Causes</th>
                             <th>Corrective / Preventive Action</th>
                             <th>Department</th>
+                            <th>Due Date</th>
                           </tr>
                         </thead>
                         <tbody>
                           {selectedIncident?.Response?.length > 0 ? (
                             selectedIncident.Response.map((resp, index) => (
                               <tr key={index}>
-                                <td>{resp.DueDate ? new Date(resp.DueDate).toLocaleDateString() : "—"}</td>
+                                <td>{resp.ResponseDate && new Date(resp.ResponseDate).toString() !== "Invalid Date" ? new Date(resp.ResponseDate).toLocaleDateString() : "—"}</td>
                                 <td>{resp.Reason || "—"}</td>
                                 <td>{resp.CorrectiveAction || "—"}</td>
                                 <td>{resp.DepartmentName || "—"}</td>
+                                <td>{resp.DueDate && new Date(resp.DueDate).toString() !== "Invalid Date" ? new Date(resp.DueDate).toLocaleDateString() : "—"}</td>
                               </tr>
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="4" style={{ textAlign: "center" }}>No response data</td>
+                              <td colSpan="5" style={{ textAlign: "center" }}>No response data</td>
                             </tr>
                           )}
                         </tbody>
@@ -513,7 +534,7 @@ export default class Departments extends Component {
                         <p><strong>Quality Specialist Name:</strong> {selectedIncident.QualitySpecialistName || "—"}</p>
                         <p>
                           <strong>Feedback Date:</strong>{" "}
-                          {selectedIncident.FeedbackDate
+                          {selectedIncident.FeedbackDate && new Date(selectedIncident.FeedbackDate).toString() !== "Invalid Date"
                             ? new Date(selectedIncident.FeedbackDate).toLocaleDateString("en-GB")
                             : "—"}
                         </p>
@@ -563,6 +584,7 @@ export default class Departments extends Component {
                           value={this.state.dueDate}
                           min={new Date().toISOString().split("T")[0]}
                           onChange={(e) => this.setState({ dueDate: e.target.value })}
+                          required
                         />
                       </div>
                       <button type="submit" className="btn-details">Submit Update</button>

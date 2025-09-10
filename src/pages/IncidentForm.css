@@ -108,7 +108,7 @@ header img {
   margin-bottom: 20px;
 }
 
-.incident-container button {
+.incident-container .submit-btn {
   width: 100%;
   background-color: #3589ad;
   color: white;
@@ -121,20 +121,26 @@ header img {
 }
 /*I will fix it later */
 .incident-container .remove-btn {
-  width: 20px;
-  background-color: #3589ad;
+  margin-left: 40px;
+  width: 90px; /* adjust width */
+  background-color: #ab3b35;
   color: white;
   font-size: 16px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  height: 30px;
+  margin-left: 10px;
+margin-bottom: 10px;
   transition: background-color 0.3s ease;
 }
 
-.incident-container button:hover {
-  background-color: #2f7999;
+.incident-container .remove-btn:hover {
+  background-color:#97332e;
 }
-
+.incident-container submit-btn:hover {
+  background-color:#2d7290;
+}
 @media (max-width: 600px) {
   .incident-container {
     padding: 20px;

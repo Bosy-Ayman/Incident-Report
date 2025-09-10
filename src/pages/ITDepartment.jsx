@@ -275,7 +275,7 @@ export default class ITDepartment extends Component {
         <div className="search-bar">
           <input 
             type="text"
-            placeholder="Search by ID, Name, or Department..."
+            placeholder="Search..."
             value={searchTerm}
             onChange={this.handleSearchChange}
           />
@@ -333,14 +333,14 @@ export default class ITDepartment extends Component {
             <button
               className="close-btn"
               onClick={this.closeDetailsModal}
-              aria-label="Close details modal"
+              aria-h4="Close details modal"
             >
               ×
             </button>
 
               <h3>Edit User Information</h3>
 
-              <label>UserName</label>
+              <h4>UserName</h4>
               <input
                 type="text"
                 value={selectedUser.UserName || ""}
@@ -350,7 +350,7 @@ export default class ITDepartment extends Component {
                 }}
               />
 
-              <label>Phone Number</label>
+              <h4>Phone Number</h4>
               <input
                 type="text"
                 value={selectedUser.PhoneNumber || ""}
@@ -360,7 +360,7 @@ export default class ITDepartment extends Component {
                 }}
               />
 
-              <label>Email</label>
+              <h4>Email</h4>
               <input
                 type="email"
                 value={selectedUser.Email || ""}
@@ -370,7 +370,7 @@ export default class ITDepartment extends Component {
                 }}
               />
 
-              <label>New Password (leave blank to keep current)</label>
+              <h4>New Password (leave blank to keep current)</h4>
               <input
                 type="password"
                 value={selectedUser.newPassword || ""}
@@ -380,7 +380,7 @@ export default class ITDepartment extends Component {
                 }}
               />
 
-              <label>Confirm Password</label>
+              <h4>Confirm Password</h4>
               <input
                 type="password"
                 value={selectedUser.confirmPassword || ""}

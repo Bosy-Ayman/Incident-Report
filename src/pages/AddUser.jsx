@@ -21,7 +21,6 @@ export default class AddUser extends Component {
     };
   }
 
-  // Fetch departments when component mounts
   componentDidMount() {
     this.fetchDepartments();
   }
@@ -30,7 +29,7 @@ export default class AddUser extends Component {
     try {
       const response = await fetch('/departments', {
         method: 'GET',
-        credentials: 'include', // Include session cookies
+        credentials: 'include', 
         headers: {
           'Content-Type': 'application/json',
         },
@@ -81,8 +80,7 @@ export default class AddUser extends Component {
       return;
     }
 
-    // For NEW users, we need to include UserID in the request
-    // but the backend should treat this as a CREATE operation
+
     const addData = {
       UserID: newUser.UserID,      // Include for new user creation
       UserName: newUser.UserName,
@@ -106,7 +104,7 @@ export default class AddUser extends Component {
   addUser = async (userData) => {
   try {
     const response = await fetch('/users', {
-      method: 'POST',  // Change from PUT to POST
+      method: 'POST', 
       headers: {
         'Content-Type': 'application/json',
       },
@@ -249,14 +247,6 @@ export default class AddUser extends Component {
             </div>
 
             <div className="form-buttons">
-              <button
-                type="button"
-                className="cancel-btn"
-                onClick={this.handleCancel}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </button>
               <button
                 type="button"
                 className="save-btn"

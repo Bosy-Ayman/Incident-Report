@@ -98,7 +98,9 @@ export default function Header() {
                  <li>
                   <Link to={`/add-user?departmentId=44&name=IT`}>Add User</Link>
                 </li>
-                
+                 <li>
+                  <Link to={`/departments?departmentId=44&name=IT`}>Add Department</Link>
+                </li>
                
               </>
             )}

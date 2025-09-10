@@ -60,7 +60,7 @@
   box-shadow: 0 4px 8px rgba(56, 161, 105, 0.4);
 }
 
-.details-btn {
+.settings-dashboard .details-btn {
   background-color: #388fb5;
   color: white;
   border: none;
@@ -71,17 +71,17 @@
   transition: all 0.3s ease;
 }
 
-.details-btn:hover {
+.settings-dashboard .details-btn:hover {
   background-color: #2f7fa1;
   transform: translateY(-1px);
 }
 
 /* Modal Styles */
-.modal-bg {
+.settings-dashboard .modal-bg {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.3);
   justify-content: center;
   align-items: flex-start;
   overflow-y: auto;
@@ -89,11 +89,11 @@
   z-index: 1000;
 }
 
-.modal-bg.active {
+.settings-dashboard .modal-bg.active {
   display: flex;
 }
 
-.modal-content {
+.settings-dashboard .modal-content {
   background: white;
   border-radius: 12px;
   max-width: 500px;
@@ -117,26 +117,32 @@
   }
 }
 
-.modal-content h3 {
+.settings-dashboard .modal-content h3 {
   margin: 0 0 25px 0;
-  color: #2d3748;
-  font-size: 1.5rem;
-  font-weight: 600;
+  color: #376e74;
+  font-size: 1.05rem;
   text-align: center;
   border-bottom: 2px solid #e2e8f0;
   padding-bottom: 15px;
 }
+.settings-dashboard .modal-content h4 {
+  /* margin: 0 0 25px 0; */
+  color: #376e74;
+  font-size: 1.0rem;
+  font-weight:lighter;
+    padding-top: 12px;
 
-/* Form Elements */
-.modal-content label {
-  display: block;
-  margin: 15px 0 5px 0;
-  color: #4a5568;
-  font-weight: 500;
-  font-size: 0.9rem;
 }
 
-.modal-content input {
+/* Form Elements */
+.settings-dashboard .modal-content label {
+  display: block;
+  margin: 15px 0 5px 0;
+  color:  #376e74;
+  font-size: 1.05rem;
+}
+
+.settings-dashboard .modal-content input {
   width: 100%;
   padding: 10px 12px;
   border: 2px solid #e2e8f0;
@@ -284,7 +290,7 @@
 }
 
 .search-bar input {
-  flex: 1;                 /* input takes remaining space */
+  flex: 1;               
   padding: 8px;
   font-size: 1rem;
 }
