@@ -1,29 +1,33 @@
-.departments-container {
-  padding: 20px;
-  max-width: 1000px;
-  margin: auto;
+.department-dashboard {
   font-family: Arial, sans-serif;
   background: #f0f3f7;
-  direction: ltr;
+  margin: 0;
+  padding: 20px;
+  max-width: 1210px;
+  margin: auto;
 }
 
-
-
-.departments-container #filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 20px 0;
-}
-
-.departments-container #filters label {
+.department-dashboard label {
   font-weight: bold;
   margin-right: 8px;
 }
 
-.departments-container #filters select,
-.departments-container #filters input[type="date"] {
+/*----------------- Filters layout----------------- */
+.department-dashboard #filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  
+}
+
+.department-dashboard #filters label {
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.department-dashboard #filters select,
+.department-dashboard #filters input[type="date"] {
   padding: 5px 8px;
   margin-right: 15px;
   font-size: 1rem;
@@ -33,42 +37,15 @@
   transition: border-color 0.3s ease;
 }
 
-.departments-container #filters select:focus,
-.departments-container #filters input[type="date"]:focus {
+.department-dashboard #filters select:focus,
+.department-dashboard #filters input[type="date"]:focus {
   outline: none;
   border-color: #2b6cb0;
-  box-shadow: 0 0 5px rgb(5, 98, 137);
+  box-shadow: 0 0 5px rgba(43, 108, 176, 0.5);
 }
 
-.departments-container table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
-  box-shadow: 0 0 8px rgba(0,0,0,0.1);
-}
-
-.departments-container th,
-.departments-container td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #eee;
-  text-align: center;
-  vertical-align: middle;
-  font-size: 0.9rem;
-}
-
-.departments-container th {
-  background: #e2e8f0;
-  font-weight: 600;
-}
-
-.departments-container tbody tr:hover {
-  background: #f9fafb;
-}
-
-.departments-container button {
-  background-color:  #3589ad;
+.department-dashboard button {
+  background-color:  #388fb5;
   color: white;
   border: none;
   padding: 7px 15px;
@@ -78,58 +55,69 @@
   transition: background-color 0.3s ease;
   margin-top: 5px;
 }
-
-.departments-container button:hover {
-  background-color: #0678a9;
+.department-dashboard button:hover {
+  background-color: #2f7fa1;
 }
-/*------------------------------------------------------------------------*/
 
-.departments-container .status-New {
+.department-dashboard table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.department-dashboard th,
+.department-dashboard td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.9rem;
+}
+
+.department-dashboard th {
+  background: #e2e8f0;
+  font-weight: 600;
+}
+/*----------------------------------------Status---------------------------------*/
+.department-dashboard .status-New {
   color: #d69e2e;
   font-weight: bold;
 }
 
-.departments-container .status-Assigned {
+.department-dashboard .status-Assigned {
   color: #3182ce;
   font-weight: bold;
 }
 
-.departments-container .status-PendingResponse {
-  color: #dd6b20;
+.department-dashboard .status-Pending {
+  color: #dd6b20 !important;
   font-weight: bold;
 }
 
-.departments-container .status-Closed {
+
+.department-dashboard .status-Done {
   color: #38a169;
   font-weight: bold;
 }
-/*------------------------------------------------------------------------*/
-.departments-container .status-Yes {
-  color: #38a169;
-  font-weight: bold;
-}
-.departments-container .status-No {
-  color: #ff4400;
-  font-weight: bold;
-}
-/*------------------------------------------------------------------------*/
 
-.btn-remove {
-  margin-left: 10px !important;
-  background-color: #cf360b !important;
-  color: white !important;
-}
+/*-----------------------------Responded by department---------------------------------*/
 
-.quality-dashboard .modal-bg {
+
+.department-dashboard .modal-bg {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.3);
   justify-content: center;
   align-items: flex-start;
   overflow-y: auto;
   padding: 40px 15px 60px;
   z-index: 1000;
+
 }
 
 .department-dashboard .modal-bg.active {
@@ -147,26 +135,147 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   position: relative;
   direction: ltr;
+  animation: modalSlideIn 0.3s ease-out;
+  
+
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 .department-dashboard .update-title {
     display: block;
     font-weight: 600;
     margin-bottom: 20px;
 }
-.department-dashboard .section {
+
+/*--------------------------- UPDATE FEEDBACK ----------------------------------*/
+.department-dashboard .update-incident {
   margin-bottom: 20px;      
   display: flex;
   flex-direction: column;   
 }
 
-.department-dashboard .section label {
-  font-weight: bold;
-  margin-bottom: 6px;        
+.department-dashboard  .update-incident input[type="text"],
+.department-dashboard  .update-incident input[type="date"]{
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
   font-size: 1rem;
+  font-family: inherit;
+  background-color: #fff;
+  transition: border-color 0.3s ease;
+
 }
 
-.quality-dashboard .btn-update {
-  background-color: #e19512 !important;
+.department-dashboard .update-incident textarea{
+   padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: #fff;
+  transition: border-color 0.3s ease;
+  min-width: 860px !important;
+
+}
+.department-dashboard .update-incident .section label{
+color: #2a768b;
+margin-top: 100px!important ;
+
+}
+ 
+.department-dashboard .incident-response-title{
+  margin: 0 0 25px 0;
+  color:  #4587a3;
+  font-size: 1.6rem;
+  text-align: center;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 15px;
+}
+/*--------------------- Responded by department flag -------------------------*/
+.department-dashboard .status-Yes {
+  color: #38a169 !important;
+  font-weight: bold;
+}
+
+.department-dashboard .status-No {
+  color: #e6504e;
+  font-weight: bold;
+}
+/*-------------------------------------------------------------------------*/
+
+
+.department-dashboard .section h3 {
+  display: block;
+  margin: 0 0 10px;
+  color: #2a768b;
+  font-size: 1.05rem;
+  margin-top: 17px;
+}
+.department-dashboard .section:not(:last-child) {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 16px;
+}
+
+/* small grid for neat two-column layout */
+.department-dashboard .grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 24px;
+}
+.department-dashboard .grid-2 .span-2 {
+  grid-column: 1 / -1;
+}
+@media (max-width: 700px) {
+  .department-dashboard .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* avoid reusing #filters inside the modal */
+.department-dashboard .assign-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.department-dashboard .assign-controls select {
+  padding: 5px 8px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  transition: border-color 0.3s ease;
+}
+.department-dashboard .assign-controls select:focus {
+  outline: none;
+  border-color: #2b6cb0;
+  box-shadow: 0 0 5px rgba(43, 108, 176, 0.5);
+}
+/*-------------------------Buttons----------------------------*/
+/*----------Close Button-----------*/
+.department-dashboard .close-btn {
+  background-color: #c30808 !important;
+  color: white;
+  border: none;
+  padding: 7px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.3s ease;
+  margin-top: 5px;
+  margin-left: "10px";
+}
+/*----------Done Button-----------*/
+
+.department-dashboard .update-btn {
+  background-color: #d0992b ;
   color: white;
   border: none;
   padding: 7px 15px;
@@ -178,8 +287,13 @@
   margin-left: "10px";
 }
 
-.quality-dashboard .btn-details {
-  background-color:  #3589ad !important;
+.department-dashboard .update-btn:hover {
+  background-color:  #c78f1e  ;
+}
+/*---------- Details Button -----------*/
+
+.department-dashboard .details-btn {
+  background-color: #4587a3 ;
   color: white;
   border: none;
   padding: 7px 15px;
@@ -190,25 +304,33 @@
   margin-top: 5px;
   margin-left: "10px";
 }
-/*------------------------------------------------------------------------*/
-
-.quality-dashboard .status-New {
-  color: #d69e2e;
-  font-weight: bold;
-}
-
-.quality-dashboard .status-Assigned {
-  color: #3182ce;
-  font-weight: bold;
-}
-
-.quality-dashboard .status-Pending {
-  color: #dd6b20 !important;
-  font-weight: bold;
+.department-dashboard .details-btn:hover {
+  background-color:   #397087;
 }
 
 
-.quality-dashboard .status-Done {
-  color: #38a169;
-  font-weight: bold;
+/*--------------------  Title css ------------------------------*/
+.department-dashboard .details-title{
+   margin: 0 0 25px 0;
+  color:  #4587a3;
+  font-size: 1.6rem;
+  text-align: center;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 15px;
+}
+.department-dashboard .feedback-title{
+  margin: 0 0 25px 0;
+  color:  #4587a3;
+  font-size: 1.6rem;
+  text-align: center;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 15px;
+}
+
+/*-----------------------Form--------------------------------------------*/
+
+.department-dashboard .select{
+margin-top: 10px;
+margin-bottom: 10px;
+
 }

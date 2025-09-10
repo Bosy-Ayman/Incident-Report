@@ -18,6 +18,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  
 }
 
 .quality-dashboard #filters label {
@@ -102,6 +103,7 @@
   color: #38a169;
   font-weight: bold;
 }
+
 /*-----------------------------Responded by department---------------------------------*/
 
 
@@ -134,6 +136,7 @@
   position: relative;
   direction: ltr;
   animation: modalSlideIn 0.3s ease-out;
+  
 
 }
 
@@ -152,20 +155,25 @@
     font-weight: 600;
     margin-bottom: 20px;
 }
+
+/*-------------------------------------------------------------*/
 .quality-dashboard .section {
   margin-bottom: 20px;      
   display: flex;
   flex-direction: column;   
 }
-
-.quality-dashboard .section label {
+ .quality-dashboard .section .h3 {
   font-weight: bold;
   margin-bottom: 6px;        
   font-size: 1rem;
-}
+  margin-bottom: 15px;
+
+} 
 
 .quality-dashboard .section input[type="text"],
-.quality-dashboard .section input[type="date"],
+.quality-dashboard .section input[type="select"],
+.quality-dashboard .section input[type="h3"],
+
 .quality-dashboard .section textarea {
   padding: 10px 12px;
   border: 1px solid #ccc;
@@ -174,20 +182,16 @@
   font-family: inherit;
   background-color: #fff;
   transition: border-color 0.3s ease;
+
 }
 
-.quality-dashboard .section input[type="text"]:focus,
-.quality-dashboard .section input[type="date"]:focus,
-.quality-dashboard .section textarea:focus {
-  outline: none;
-  border-color: #2b6cb0;     
-  box-shadow: 0 0 5px rgba(43, 108, 176, 0.5);
-}
-
-.quality-dashboard .section textarea {
+/* .quality-dashboard .section textarea {
   resize: vertical;          
-  min-height: 80px;
-}
+  min-height: 20px;
+    min-width: 20px;
+
+  margin-bottom: 15px;
+} */
 /*--------------------- Responded by department flag -------------------------*/
 .quality-dashboard .status-Yes {
   color: #38a169 !important;
@@ -206,6 +210,7 @@
   margin: 0 0 10px;
   color: #2a768b;
   font-size: 1.05rem;
+  margin-top: 17px;
 }
 .quality-dashboard .section:not(:last-child) {
   border-bottom: 1px solid #eee;
@@ -245,7 +250,8 @@
   border-color: #2b6cb0;
   box-shadow: 0 0 5px rgba(43, 108, 176, 0.5);
 }
-
+/*-------------------------Buttons----------------------------*/
+/*----------Close Button-----------*/
 .quality-dashboard .close-btn {
   background-color: #c30808 !important;
   color: white;
@@ -258,8 +264,10 @@
   margin-top: 5px;
   margin-left: "10px";
 }
+/*----------Done Button-----------*/
+
 .quality-dashboard .close-button {
-  background-color: #469e28 !important;
+  background-color: #469e28 ;
   color: white;
   border: none;
   padding: 7px 15px;
@@ -270,6 +278,12 @@
   margin-top: 5px;
   margin-left: "10px";
 }
+
+.quality-dashboard .close-button:hover {
+  background-color:  #3b8622;
+}
+/*---------- Details Button -----------*/
+
 .quality-dashboard .details-btn {
   background-color: #4587a3 ;
   color: white;
@@ -282,6 +296,11 @@
   margin-top: 5px;
   margin-left: "10px";
 }
+.quality-dashboard .details-btn:hover {
+  background-color:   #397087;
+}
+/*---------- Reviewed Button / For Quality Manager Only -----------*/
+
 .quality-dashboard .reviewed-button{
   background-color: #a34545 ;
   color: white;
@@ -294,8 +313,14 @@
   margin-top: 5px;
   margin-left: "10px";
 }
+
+.quality-dashboard .reviewed-button:hover {
+  background-color:  #783333;
+}
+/*---------- Update Button -----------*/
+
 .quality-dashboard .update-btn {
-  background-color: #c38b1a !important;
+  background-color: #c38b1a ;
   color: white;
   border: none;
   padding: 7px 15px;
@@ -306,6 +331,31 @@
   margin-top: 5px;
   margin-left: "10px";
 }
+.quality-dashboard .update-btn:hover {
+  background-color:  #a87716 ;
+}
+/*--------------------  Title css ------------------------------*/
+.quality-dashboard .details-title{
+   margin: 0 0 25px 0;
+  color:  #4587a3;
+  font-size: 1.6rem;
+  text-align: center;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 15px;
+}
+.quality-dashboard .feedback-title{
+  margin: 0 0 25px 0;
+  color:  #4587a3;
+  font-size: 1.6rem;
+  text-align: center;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 15px;
+}
 
+/*-----------------------Form--------------------------------------------*/
 
+.quality-dashboard .Select{
+margin-top: 10px;
+margin-bottom: 10px;
 
+}

@@ -21,7 +21,8 @@ export default class ITDepartment extends Component {
         PhoneNumber: "",
         Email: "",
         DepartmentID: "",
-         
+        IsBlocked: "",
+
 
       }
     };
@@ -99,7 +100,7 @@ export default class ITDepartment extends Component {
       
       if (result.status === "success") {
         alert("User added successfully!");
-        await this.fetchUsers(); // Refresh the users list
+        await this.fetchUsers(); 
         return true;
       } else {
         alert(`Error: ${result.message}`);
@@ -188,7 +189,7 @@ export default class ITDepartment extends Component {
         confirmPassword: "",
         PhoneNumber: "",
         Email: "",
-        DepartmentID: ""
+        DepartmentID: "",
       }
     });
   };
@@ -214,7 +215,8 @@ export default class ITDepartment extends Component {
       UserName: selectedUser.UserName,
       PhoneNumber: selectedUser.PhoneNumber,
       Email: selectedUser.Email,
-      DepartmentID: selectedUser.DepartmentID
+      DepartmentID: selectedUser.DepartmentID,
+      IsBlocked: selectedUser.IsBlocked
     };
 
     // Only include password if it was changed
@@ -252,7 +254,7 @@ export default class ITDepartment extends Component {
   };
 
   render() {
-    const { showDetailsModal, showAddModal ,loading, error, selectedUser, newUser, searchTerm } = this.state;
+    const { showDetailsModal,loading, error, selectedUser, searchTerm } = this.state;
     const filteredUsers = this.getFilteredUsers();
 
   if (loading) {
@@ -290,6 +292,7 @@ export default class ITDepartment extends Component {
               <th>Department</th>
               <th>Phone</th>
               <th>Email</th>
+               <th>Is Blocked</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -302,6 +305,7 @@ export default class ITDepartment extends Component {
                   <td>{user.DepartmentName}</td>
                   <td>{user.PhoneNumber}</td>
                   <td>{user.Email}</td>
+                  <td className ={user.IsBlocked== true ?'status-blocked':'status-unblocked'}>{user.IsBlocked== true ?'Blocked':'UnBlocked'}</td>
                   <td>
                     <button
                       className="details-btn"
@@ -370,7 +374,7 @@ export default class ITDepartment extends Component {
                 }}
               />
 
-              <h4>New Password (leave blank to keep current)</h4>
+              <h4> New Password </h4>
               <input
                 type="password"
                 value={selectedUser.newPassword || ""}

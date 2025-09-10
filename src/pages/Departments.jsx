@@ -139,61 +139,6 @@ export default class Departments extends Component {
     dueDate: "",
   });
 
-  handleAssignDepartment = async () => {
-    const { selectedIncident, selectedDepartmentId, departments } = this.state;
-    if (!selectedIncident || !selectedDepartmentId) return alert("No department selected!");
-
-    try {
-      const token = localStorage.getItem("authToken");
-      const res = await fetch("/assign-department", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          IncidentID: selectedIncident.IncidentID,
-          DepartmentID: selectedDepartmentId,
-        }),
-      });
-      const result = await res.json();
-      if (res.ok) {
-        alert("Department assigned successfully!");
-        this.setState((prevState) => {
-          const updatedIncidents = prevState.incidents.map((inc) => {
-            if (inc.IncidentID === selectedIncident.IncidentID) {
-              const deptName = departments.find(
-                (dept) => dept.DepartmentID === parseInt(selectedDepartmentId)
-              )?.DepartmentName || "Unknown";
-              return {
-                ...inc,
-                assignedDepartmentNames: inc.assignedDepartmentNames
-                  ? `${inc.assignedDepartmentNames}, ${deptName}`
-                  : deptName,
-                assignedDepartmentIDs: inc.assignedDepartmentIDs
-                  ? [...inc.assignedDepartmentIDs, selectedDepartmentId]
-                  : [selectedDepartmentId],
-                status: "Assigned",
-              };
-            }
-            return inc;
-          });
-          return {
-            incidents: updatedIncidents,
-            filteredIncidents: updatedIncidents,
-            showDetailsModal: false,
-            selectedIncident: null,
-            selectedDepartmentId: "",
-          };
-        });
-      } else {
-        alert("Assignment failed: " + (result.message || "Unknown error"));
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Network error: " + err.message);
-    }
-  };
 
   handleUpdateSubmit = async (e) => {
     e.preventDefault();
@@ -298,7 +243,7 @@ export default class Departments extends Component {
     const { filteredIncidents, filters, showDetailsModal, showUpdateModal, selectedIncident, isLoading, departmentName } = this.state;
 
     return (
-      <div className="quality-dashboard">
+      <div className="department-dashboard">
         <main>
           {isLoading ? (
             <div
@@ -336,7 +281,7 @@ export default class Departments extends Component {
                 <thead>
                   <tr>
                     <th>Incident No</th>
-                    <th>Date</th>
+                    <th>Incident Date</th>
                     <th>Location</th>
                     <th>Reporter</th>
                     <th>Status</th>
@@ -347,7 +292,7 @@ export default class Departments extends Component {
                   {filteredIncidents.map((incident) => (
                     <tr key={incident.IncidentID}>
                       <td>{incident.IncidentID}</td>
-                      <td>{incident.IncientDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
+                      <td>{incident.IncidentDate ? new Date(incident.IncidentDate).toLocaleDateString() : '-'}</td>
                       <td>{incident.Location || '-'}</td>
                       <td>{incident.ReporterName || '-'}</td>
                       <td className={`status-${incident.status.replace(/\s/g, "")}`}>{incident.status || '-'}</td>
@@ -355,7 +300,7 @@ export default class Departments extends Component {
                         <button className="btn-details" onClick={() => this.openDetailsModal(incident)}>Details</button>
                         {(incident.status === 'Assigned' || incident.status === 'Pending') && (
                           <button
-                            className="btn-update"
+                            className="update-btn"
                             onClick={() => this.openUpdateModal(incident)}
                             style={{ marginLeft: "10px" }}
                           >
@@ -372,7 +317,7 @@ export default class Departments extends Component {
                 <div className="modal-bg active" onClick={this.closeDetailsModal}>
                   <div className="modal-box" onClick={(e) => e.stopPropagation()}>
                     <button className="close-btn" onClick={this.closeDetailsModal}>×</button>
-                    <h2>Incident Details</h2>
+                    <h2 className='details-title'>Incident Details</h2>
                     <div className="section">
                       <h3>Incident Information</h3>
                       <div className="grid-2">
@@ -466,30 +411,7 @@ export default class Departments extends Component {
                           )}
                         </p>
                       </div>
-                      {selectedIncident?.status === "New" && (
-                        <div>
-                          <h4>Send to the Department</h4>
-                          <div className="assign-controls">
-                            <select
-                              value={this.state.selectedDepartmentId}
-                              onChange={(e) => this.setState({ selectedDepartmentId: e.target.value })}
-                            >
-                              <option value="">Select Department</option>
-                              {this.state.departments.map((dept) => (
-                                <option key={dept.DepartmentID} value={dept.DepartmentID}>
-                                  {dept.DepartmentName}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={this.handleAssignDepartment}
-                              disabled={!this.state.selectedDepartmentId}
-                            >
-                              Submit
-                            </button>
-                          </div>
-                        </div>
-                      )}
+               
                     </div>
 
                     <div className="section">
@@ -549,16 +471,16 @@ export default class Departments extends Component {
                   </div>
                 </div>
               )}
-
+              <div className="update-incident">
               {showUpdateModal && selectedIncident && (
                 <div className="modal-bg active" onClick={this.closeUpdateModal}>
                   <div className="modal-box" onClick={(e) => e.stopPropagation()}>
                     <button className="close-btn" onClick={this.closeUpdateModal}>×</button>
-                    <h2>Update Incident Response</h2>
+                    <h2 className="incident-response-title">Update Incident Response</h2>
                     <form onSubmit={this.handleUpdateSubmit}>
                       <div className="section">
-                        <label htmlFor="probable-causes">Incident Most Probable Causes:</label>
-                        <input
+                        <label>Incident Most Probable Causes:</label><br/><br/>
+                        <textarea
                           type="text"
                           id="probable-causes"
                           defaultValue={selectedIncident.Response?.find(r => r.DepartmentID === parseInt(window.location.pathname.split("/").pop()))?.Reason || ""}
@@ -567,7 +489,7 @@ export default class Departments extends Component {
                         />
                       </div>
                       <div className="section">
-                        <label htmlFor="corrective-action">Corrective / Preventive Action:</label>
+                        <label>Corrective / Preventive Action:</label><br/><br/>
                         <textarea
                           id="corrective-action"
                           rows="3"
@@ -577,7 +499,7 @@ export default class Departments extends Component {
                         />
                       </div>
                       <div className="section">
-                        <label htmlFor="due-date">Due Date:</label>
+                        <label>Due Date:</label>
                         <input
                           type="date"
                           id="due-date"
@@ -591,7 +513,9 @@ export default class Departments extends Component {
                     </form>
                   </div>
                 </div>
+                
               )}
+              </div>
             </>
           )}
         </main>

@@ -524,8 +524,8 @@ app.get('/departments',async (req, res) => {
 });
 
 //----------------------------- Add/Update Department Response ------------------------
-app.put("/department-response" , async (req, res) => {
-  const { ResponseID, IncidentID, DepartmentID, Reason, CorrectiveAction, DueDate } = req.body;
+app.put("/department-response", async (req, res) => {
+  const { IncidentID, DepartmentID, Reason, CorrectiveAction, DueDate } = req.body;
 
   // Validate required fields
   if (!IncidentID || !DepartmentID) {
@@ -572,75 +572,33 @@ app.put("/department-response" , async (req, res) => {
       }
 
       const now = new Date();
-      let responseIdResult;
-      let responseData;
 
-      if (ResponseID) {
-        // Verify ResponseID exists
-        const responseCheck = await transaction.request()
-          .input("ResponseID", sql.Int, ResponseID)
-          .input("DepartmentID", sql.Int, DepartmentID)
-          .query("SELECT 1 FROM DepartmentResponse WHERE ResponseID = @ResponseID AND DepartmentID = @DepartmentID");
-        if (responseCheck.recordset.length === 0) {
-          return res.status(400).json({ status: "error", message: "Invalid ResponseID or DepartmentID for this response" });
-        }
+      // INSERT new response
+      const result = await transaction.request()
+        .input("IncidentID", sql.Int, IncidentID)
+        .input("DepartmentID", sql.Int, DepartmentID)
+        .input("Reason", sql.NVarChar, Reason)
+        .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
+        .input("ResponseDate", sql.DateTime, now)
+        .input("DueDate", sql.Date, DueDate || null)
+        .query(`
+          INSERT INTO DepartmentResponse
+            (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, DueDate)
+          VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @DueDate);
+          SELECT SCOPE_IDENTITY() AS ResponseID;
+        `);
 
-        // UPDATE existing response
-        await transaction.request()
-          .input("ResponseID", sql.Int, ResponseID)
-          .input("DepartmentID", sql.Int, DepartmentID)
-          .input("Reason", sql.NVarChar, Reason)
-          .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
-          .input("ResponseDate", sql.DateTime, now)
-          .input("DueDate", sql.Date, DueDate || null)
-          .query(`
-            UPDATE DepartmentResponse
-            SET Reason = @Reason,
-                CorrectiveAction = @CorrectiveAction,
-                ResponseDate = @ResponseDate,
-                DueDate = @DueDate
-            WHERE ResponseID = @ResponseID AND DepartmentID = @DepartmentID
-          `);
-
-        responseIdResult = ResponseID;
-        responseData = {
-          ResponseID: responseIdResult,
-          IncidentID,
-          DepartmentID,
-          Reason,
-          CorrectiveAction,
-          ResponseDate: now.toISOString().split("T")[0],
-          DueDate: DueDate || null,
-          DepartmentName: departmentName
-        };
-      } else {
-        // INSERT new response
-        const result = await transaction.request()
-          .input("IncidentID", sql.Int, IncidentID)
-          .input("DepartmentID", sql.Int, DepartmentID)
-          .input("Reason", sql.NVarChar, Reason)
-          .input("CorrectiveAction", sql.NVarChar, CorrectiveAction)
-          .input("ResponseDate", sql.DateTime, now)
-          .input("DueDate", sql.Date, DueDate || null)
-          .query(`
-            INSERT INTO DepartmentResponse
-              (IncidentID, DepartmentID, Reason, CorrectiveAction, ResponseDate, DueDate)
-            VALUES (@IncidentID, @DepartmentID, @Reason, @CorrectiveAction, @ResponseDate, @DueDate);
-            SELECT SCOPE_IDENTITY() AS ResponseID;
-          `);
-
-        responseIdResult = result.recordset[0].ResponseID;
-        responseData = {
-          ResponseID: responseIdResult,
-          IncidentID,
-          DepartmentID,
-          Reason,
-          CorrectiveAction,
-          ResponseDate: now.toISOString().split("T")[0],
-          DueDate: DueDate || null,
-          DepartmentName: departmentName
-        };
-      }
+      const responseIdResult = result.recordset[0].ResponseID;
+      const responseData = {
+        ResponseID: responseIdResult,
+        IncidentID,
+        DepartmentID,
+        Reason,
+        CorrectiveAction,
+        ResponseDate: now.toISOString().split("T")[0],
+        DueDate: DueDate || null,
+        DepartmentName: departmentName
+      };
 
       // Update RespondedFlag in IncidentDepartments
       await transaction.request()
@@ -666,7 +624,7 @@ app.put("/department-response" , async (req, res) => {
 
       res.json({
         status: "success",
-        message: ResponseID ? "Response updated successfully" : "Response saved successfully",
+        message: "Response saved successfully",
         ResponseID: responseIdResult,
         response: responseData
       });
@@ -891,34 +849,113 @@ app.get("/department-info/:departmentId", async (req, res) => {
 });
 // ----------------------------------------- login -------------------------------------
 app.post("/login", async (req, res) => {
-  const { UserID, Password } = req.body || {}; 
-
+  const { UserID, Password } = req.body || {};
+  
   if (!UserID || !Password) {
-    return res.status(400).json({ status: "error", message: "UserID and Password required" });
+    return res.status(400).json({ 
+      status: "error", 
+      message: "UserID and Password required" 
+    });
   }
-
+  
   const trimmedUserID = UserID.trim();
-
   let pool;
+  
   try {
     pool = await sql.connect(dbConfig);
+    
+    // Get user information including current block status and failed attempts
     const result = await pool
       .request()
       .input("UserID", sql.VarChar, trimmedUserID)
       .query(`
-        SELECT u.UserID, u.UserName, u.Password,
+        SELECT u.UserID, u.UserName, u.Password, u.IsBlocked, u.FailedLoginAttempts,
                d.DepartmentID, d.DepartmentName
         FROM Users u
         LEFT JOIN Departments d ON u.DepartmentID = d.DepartmentID
         WHERE u.UserID = @UserID
       `);
 
-    if (result.recordset.length === 0)
-      return res.status(404).json({ status: "error", message: "UserID not found" });
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ 
+        status: "error", 
+        message: "UserID not found" 
+      });
+    }
 
     const user = result.recordset[0];
-    if (user.Password !== Password)
-      return res.status(401).json({ status: "error", message: "Incorrect password" });
+    
+    // Normalize and log IsBlocked
+    const isBlocked = user.IsBlocked == null ? false : Boolean(Number(user.IsBlocked));
+    console.log(`User ${trimmedUserID}: IsBlocked=${isBlocked} (raw: ${user.IsBlocked}, type: ${typeof user.IsBlocked}), FailedAttempts=${user.FailedLoginAttempts || 0}`);
+
+    // Check if user is blocked and deny access
+    if (isBlocked) {
+      console.log(`User ${trimmedUserID} is blocked - denying access`);
+      // Destroy any existing session to prevent bypass
+      if (req.session.user) {
+        req.session.destroy();
+      }
+      return res.status(403).json({ 
+        status: "error", 
+        message: "Account is blocked due to multiple failed login attempts. Please contact administrator." 
+      });
+    }
+
+    // Check password
+    if (user.Password !== Password) {
+      // Increment failed login attempts
+      const currentFailedAttempts = (user.FailedLoginAttempts || 0) + 1;
+      const shouldBlock = currentFailedAttempts >= 5;
+      
+      console.log(`Wrong password for ${trimmedUserID}: attempts will be ${currentFailedAttempts}, shouldBlock=${shouldBlock}`);
+      
+      // Update failed attempts and block status if necessary
+      await pool
+        .request()
+        .input("UserID", sql.VarChar, trimmedUserID)
+        .input("FailedAttempts", sql.Int, currentFailedAttempts)
+        .input("IsBlocked", sql.Bit, shouldBlock)
+        .query(`
+          UPDATE Users 
+          SET FailedLoginAttempts = @FailedAttempts,
+              IsBlocked = @IsBlocked
+          WHERE UserID = @UserID
+        `);
+      
+      // Verify the update worked
+      const verifyResult = await pool
+        .request()
+        .input("UserID", sql.VarChar, trimmedUserID)
+        .query(`SELECT IsBlocked, FailedLoginAttempts FROM Users WHERE UserID = @UserID`);
+      
+      console.log(`After update - User ${trimmedUserID}: IsBlocked=${verifyResult.recordset[0].IsBlocked}, FailedAttempts=${verifyResult.recordset[0].FailedLoginAttempts}`);
+      
+      const remainingAttempts = 5 - currentFailedAttempts;
+      let message = "Incorrect password";
+      
+      if (shouldBlock) {
+        message = "Account blocked due to multiple failed login attempts. Please contact administrator.";
+      } else if (remainingAttempts <= 2) {
+        message = `Incorrect password. ${remainingAttempts} attempts remaining before account is blocked.`;
+      }
+      
+      return res.status(401).json({ 
+        status: "error", 
+        message: message 
+      });
+    }
+
+    // Password is correct - reset failed login attempts
+    console.log(`Correct password for ${trimmedUserID} - resetting failed attempts`);
+    await pool
+      .request()
+      .input("UserID", sql.VarChar, trimmedUserID)
+      .query(`
+        UPDATE Users 
+        SET FailedLoginAttempts = 0
+        WHERE UserID = @UserID
+      `);
 
     // Save user session
     req.session.user = {
@@ -927,17 +964,23 @@ app.post("/login", async (req, res) => {
       name: user.UserName,
     };
 
+    console.log(`Login successful for ${trimmedUserID}`);
+    
     return res.json({
       status: "success",
       message: "Login successful",
       userId: user.UserID,
+      userName: user.UserName,
       departmentId: user.DepartmentID,
       departmentName: user.DepartmentName,
     });
 
   } catch (err) {
     console.error("Login error:", err);
-    return res.status(500).json({ status: "error", message: err.message });
+    return res.status(500).json({ 
+      status: "error", 
+      message: "Internal server error" 
+    });
   } finally {
     if (pool) await pool.close();
   }
@@ -1008,7 +1051,6 @@ if (req.session.user.id.toString() !== "1033") {
     if (pool) await pool.close();
   }
 });
-
 
 //--------------------------------------CLOSE INCIDENT -------------------------------
 app.put("/quality/close-incident", requireLogin, async (req, res) => {
@@ -1131,7 +1173,6 @@ app.get("/incident-per-date", async (req, res) => {
   }
 });
 
-
 //-------------------PieChart: Responded or Not----------------------------
 app.get("/if-responded", requireLogin, async (req, res) => {
   let pool;
@@ -1171,6 +1212,8 @@ app.get("/users", async (req, res) => {
           u.DepartmentID, 
           u.PhoneNumber, 
           u.Email, 
+          u.IsBlocked,
+          u.FailedLoginAttempts,
           d.DepartmentName
         FROM Users u
         JOIN Departments d
@@ -1252,14 +1295,15 @@ app.delete("/users/:id", async (req, res) => {
 /*--------------------------------*/
 // UPDATE/CREATE USER
 app.put("/users", async (req, res) => {
-  let { UserID, UserName, DepartmentID, PhoneNumber, Email, Password } = req.body;
+  let { UserID, UserName, DepartmentID, PhoneNumber, Email, Password,IsBlocked,FailedLoginAttempts } = req.body;
 
   // Trim inputs
   UserID = UserID ? UserID.trim() : null;
   UserName = UserName ? UserName.trim() : null;
   Email = Email ? Email.trim() : null;
   PhoneNumber = PhoneNumber ? PhoneNumber.trim() : null;
-
+  IsBlocked = IsBlocked != null ? Boolean(Number(IsBlocked)) : null;
+  FailedLoginAttempts = FailedLoginAttempts != null ? FailedLoginAttempts : null;
   // -------------------- Basic Validation --------------------
   if (!UserName || !Email) {
     return res.status(400).json({ 
@@ -1279,7 +1323,7 @@ app.put("/users", async (req, res) => {
     let result;
     let userExists = false;
 
-    // Check if user exists in database (if UserID is provided)
+    // Check if user exists in database 
     if (UserID) {
       const checkResult = await transaction.request()
         .input("UserID", sql.VarChar(10), UserID)
@@ -1308,6 +1352,13 @@ app.put("/users", async (req, res) => {
       if (Password && Password.trim() !== '') {
         updateFields.push("Password = @Password");
         queryParams.Password = Password;
+        
+        updateFields.push("IsBlocked= @IsBlocked");
+        queryParams.IsBlocked = false;
+
+        updateFields.push("FailedLoginAttempts = @FailedLoginAttempts");
+        queryParams.FailedLoginAttempts = 0;
+
       }
 
       if (DepartmentID) {
@@ -1419,6 +1470,7 @@ app.put("/users", async (req, res) => {
     if (pool) await pool.close();
   }
 });
+
 /*--------------------------------*/
 
 app.post("/users", async (req, res) => {

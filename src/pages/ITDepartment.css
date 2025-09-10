@@ -305,3 +305,12 @@
   font-size: 0.85rem;
   transition: all 0.3s ease;
 }
+.settings-dashboard .status-blocked{
+   color: #e6504e;
+  font-weight: bold;
+}
+
+.settings-dashboard  .status-unblocked{
+   color: #38a169 !important;
+  font-weight: bold;
+}

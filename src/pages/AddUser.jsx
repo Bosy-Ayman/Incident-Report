@@ -14,10 +14,10 @@ export default class AddUser extends Component {
         Email: '',
         DepartmentID: '',
       },
-      departments: [], // Initialize departments state
+      departments: [], 
       isSubmitting: false,
       redirectToUsers: false,
-      error: null, // For error handling
+      error: null,
     };
   }
 
@@ -82,13 +82,13 @@ export default class AddUser extends Component {
 
 
     const addData = {
-      UserID: newUser.UserID,      // Include for new user creation
+      UserID: newUser.UserID,      
       UserName: newUser.UserName,
       Password: newUser.Password,
       PhoneNumber: newUser.PhoneNumber,
       Email: newUser.Email,
       DepartmentID: parseInt(newUser.DepartmentID),
-      isNewUser: true  // Add flag to indicate this is a new user
+      isNewUser: true  //flag to indicate this is a new user
     };
 
     this.setState({ isSubmitting: true });
@@ -147,7 +147,7 @@ export default class AddUser extends Component {
     return (
       <div className="add-user-page">
         <div className="add-user-container">
-          <h2>Add New User</h2>
+          <h2 className='add-user-title'>Add New User</h2>
 
           <form className="add-user-form" onSubmit={(e) => e.preventDefault()}>
               <div className="form-group">
@@ -156,7 +156,6 @@ export default class AddUser extends Component {
                 type="text"
                 value={newUser.UserID}
                 //need to check whether this UserID exist before or not
-
                 onChange={(e) => this.handleInputChange('UserID', e.target.value)}
                 placeholder="Enter UserID"
                 required

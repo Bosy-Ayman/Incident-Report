@@ -68,6 +68,8 @@ export default class AddDepartment extends Component {
             this.addDepartment();
           }}>
             <div className="form-group">
+              <h2 className='add-department-title'>Add New Department</h2>
+
               <label>Department Name *</label>
               <input
                 type="text"

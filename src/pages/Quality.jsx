@@ -262,7 +262,7 @@ openUpdateModal = (incident) => {
   
   const qualityData = {
     categorization: incident.FeedbackCategorization || "",
-    type: incident.FeedbackType || "", // Change this to handle single string instead of array
+    type: incident.FeedbackType || "", 
     riskScoring: incident.FeedbackRiskScoring || "",
     effectiveness: incident.FeedbackEffectiveness || "",
     qualitySpecialistName: incident.QualitySpecialistName || loggedInUserName,
@@ -273,7 +273,7 @@ openUpdateModal = (incident) => {
     showUpdateModal: true,
     selectedIncident: { ...incident, ...qualityData },
     categorization: qualityData.categorization,
-    type: qualityData.type, // This should now be a string
+    type: qualityData.type, 
     riskScoring: qualityData.riskScoring,
     effectiveness: qualityData.effectiveness,
     qualitySpecialistName: qualityData.qualitySpecialistName,
@@ -488,10 +488,10 @@ openUpdateModal = (incident) => {
   });
 };
 
-// 5. Add this method to ensure proper state initialization for type field
+// to ensure proper state initialization for type field
 initializeFormState = () => {
   this.setState({
-    type: "", // Change this from [] to "" for single select
+    type: "", 
   });
 };
 
@@ -504,7 +504,6 @@ initializeFormState = () => {
     });
   };
   
-// Replace the existing handleAssignDepartment method in your Quality.js component with this:
 handleAssignDepartment = () => {
   const { selectedIncident, selectedDepartmentId } = this.state;
   
@@ -536,11 +535,7 @@ handleAssignDepartment = () => {
   .then(data => {
     if (data.status === "success") {
       alert("Department assigned successfully!");
-      
-      // Get department name for display
       const departmentName = this.state.departments.find(d => d.DepartmentID == selectedDepartmentId)?.DepartmentName || "";
-      
-      // Update local state instead of full refresh
       this.setState(prevState => {
         const updatedIncidents = prevState.incidents.map(inc =>
           inc.IncidentID === selectedIncident.IncidentID
@@ -549,7 +544,6 @@ handleAssignDepartment = () => {
                 status: 'Assigned',
                 DepartmentID: selectedDepartmentId,
                 DepartmentName: departmentName,
-                // Update assigned departments arrays as well
                 assignedDepartmentIDs: [...(inc.assignedDepartmentIDs || []), parseInt(selectedDepartmentId)],
                 assignedDepartmentNames: inc.assignedDepartmentNames 
                   ? `${inc.assignedDepartmentNames}, ${departmentName}`
@@ -557,8 +551,6 @@ handleAssignDepartment = () => {
               }
             : inc
         );
-
-        // Also update the selectedIncident if it's currently open in modal
         const updatedSelectedIncident = prevState.selectedIncident 
           ? { 
               ...prevState.selectedIncident, 
@@ -645,6 +637,7 @@ getActionButton = (incident) => {
             });
           }}
           style={{ marginLeft: "10px" }}
+          
         >
           Done
         </button>
@@ -785,7 +778,7 @@ getActionButton = (incident) => {
               ×
             </button>
 
-            <h2 id="details-title">Incident Details</h2>
+            <h2 className='details-title'id="details-title">Incident Details</h2>
 
             {selectedIncident && (
               <>
@@ -880,18 +873,18 @@ getActionButton = (incident) => {
                         {selectedIncident.responded === "Yes" ? "Yes" : "No"}
                       </span>
                     </p>
-               <p className="span-2">
-                  <strong>Assigned Department(s):</strong>{" "}
-                  {selectedIncident.assignedDepartmentNames && selectedIncident.assignedDepartmentNames.trim() !== "" ? (
-                    <ul>
-                      {selectedIncident.assignedDepartmentNames.split(", ").map((name, index) => (
-                        <li key={index}>{name}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    "—"
-                  )}
-                </p>
+                  <p className="span-2">
+                      <strong>Assigned Department(s):</strong>{" "}
+                      {selectedIncident.assignedDepartmentNames && selectedIncident.assignedDepartmentNames.trim() !== "" ? (
+                        <ul>
+                          {selectedIncident.assignedDepartmentNames.split(", ").map((name, index) => (
+                            <li key={index}>{name}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        "—"
+                      )}
+                    </p>
 
 
                   </div>
@@ -1003,8 +996,11 @@ getActionButton = (incident) => {
               ×
             </button>
 
-            <form onSubmit={this.handleUpdateSubmit}>
-              <h1>Quality Feedback</h1>
+            <form 
+            onSubmit={this.handleUpdateSubmit} 
+            className="feedback-form"
+            >
+              <h1 className="feedback-title">Quality Feedback</h1>
 
               <div className="section">
                 <h3>Categorization</h3>
@@ -1016,6 +1012,7 @@ getActionButton = (incident) => {
                 />
 
               <h3>Type</h3>
+              <div id="filters">
               <select
                 value={this.state.type.length > 0 ? this.state.type[0] : ""}
                 onChange={(e) => this.setState({ type: e.target.value ? [e.target.value] : [] })}
@@ -1026,7 +1023,9 @@ getActionButton = (incident) => {
                 <option value="Significant Events">Significant Events</option>
                 <option value="Sentinel Events">Sentinel Events</option>
               </select>
-                
+              
+               </div>
+
                 <h3>Risk Scoring</h3>
                 <div id="filters">
                 <select
