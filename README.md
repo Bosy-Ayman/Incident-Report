@@ -26,22 +26,39 @@
   - [ Installation](#-installation)
   - [ Usage](#-usage)
   - [ Testing](#-testing)
-- [ Project Roadmap](#-project-roadmap)
-- [ Contributing](#-contributing)
-- [ License](#-license)
-- [ Acknowledgments](#-acknowledgments)
 
 ---
 
 ##  Overview
 
-<code>❯ REPLACE-ME</code>
+The aim was to implement a complete workflow that guided incidents from the moment they were reported until they were fully resolved
 
----
 
 ##  Features
 
-<code>❯ REPLACE-ME</code>
+**Incident Submission:** Users could log incidents directly with the quality department.
+
+**Departmental Forwarding:** Quality staff could forward incidents to the relevant department.
+
+**Departmental Response:** Departments received the incident, investigated it, and submitted causes, preventive actions, and a resolution due date.
+
+**Quality Feedback:** The quality team reviewed these responses, provided feedback, and could also extend the deadline if a department had not yet responded.
+
+**Quality Manager Review:** A final review step by the quality manager ensured accountability and closure.
+
+**Administrator Role:** Administrators had the ability to add and update user accounts as well as manage departments.
+
+**Designing an analytics dashboard to help visualize performance and trends. The dashboard included:**
+--
+A bar chart showing incidents by status (assigned, pending, resolved).
+
+A pie chart showing who was affected (patients, visitors, employees).
+
+A pie chart comparing responded versus pending incidents.
+
+A bar chart of the average resolution time per department.
+# ERD Diagram
+<img width="1390" height="559" alt="image" src="https://github.com/user-attachments/assets/da989359-0d49-4ec8-870a-361b2674fc3a" />
 
 ---
 
@@ -73,179 +90,7 @@
 ```
 
 
-###  Project Index
-<details open>
-	<summary><b><code>INCIDENT-REPORT/</code></b></summary>
-	<details> <!-- __root__ Submodule -->
-		<summary><b>__root__</b></summary>
-		<blockquote>
-			<table>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/package-lock.json'>package-lock.json</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/netlify.toml'>netlify.toml</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/package.json'>package.json</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/server.js'>server.js</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			</table>
-		</blockquote>
-	</details>
-	<details> <!-- src Submodule -->
-		<summary><b>src</b></summary>
-		<blockquote>
-			<table>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/App.css'>App.css</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/App.test.js'>App.test.js</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/setupTests.js'>setupTests.js</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/App.js'>App.js</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/reportWebVitals.js'>reportWebVitals.js</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/index.js'>index.js</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			</table>
-			<details>
-				<summary><b>components</b></summary>
-				<blockquote>
-					<table>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/components/ProtectedRoute.jsx'>ProtectedRoute.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/components/Header.jsx'>Header.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/components/Header.css'>Header.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/components/Loading.css'>Loading.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					</table>
-				</blockquote>
-			</details>
-			<details>
-				<summary><b>pages</b></summary>
-				<blockquote>
-					<table>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/IncidentForm.css'>IncidentForm.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/ITDepartment.jsx'>ITDepartment.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/AddDepartment.jsx'>AddDepartment.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Login.jsx'>Login.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/AddUser.jsx'>AddUser.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Dashboard.css'>Dashboard.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Departments.jsx'>Departments.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Login.css'>Login.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Dashboard.jsx'>Dashboard.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Quality.css'>Quality.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/AddUser.css'>AddUser.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/ITDepartment.css'>ITDepartment.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/AddDepartment.css'>AddDepartment.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Departments.css'>Departments.css</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/Quality.jsx'>Quality.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					<tr>
-						<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/src/pages/IncidentForm.jsx'>IncidentForm.jsx</a></b></td>
-						<td><code>❯ REPLACE-ME</code></td>
-					</tr>
-					</table>
-				</blockquote>
-			</details>
-		</blockquote>
-	</details>
-	<details> <!-- public Submodule -->
-		<summary><b>public</b></summary>
-		<blockquote>
-			<table>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/public/index.html'>index.html</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/public/manifest.json'>manifest.json</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			<tr>
-				<td><b><a href='https://github.com/Bosy-Ayman/Incident-Report/blob/master/public/robots.txt'>robots.txt</a></b></td>
-				<td><code>❯ REPLACE-ME</code></td>
-			</tr>
-			</table>
-		</blockquote>
-	</details>
-</details>
 
----
 ##  Getting Started
 
 ###  Prerequisites
@@ -275,8 +120,3 @@ Install Incident-Report using one of the following methods:
 
 ---
 
-##  Acknowledgments
-
-- List any resources, contributors, inspiration, etc. here.
-
----
